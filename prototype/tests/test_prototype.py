@@ -698,8 +698,217 @@ def run(base: str) -> None:
         check("a direct video link with no file extension is imported", False,
               "docs/sample/lecture.mp4 missing")
 
+    # ---- 11. what a link is, before anything is fetched ------------------- #
+    print("\n[11] YouTube Shorts and other link kinds")
+
+    shorts = "https://www.youtube.com/shorts/Sh8EPts-DXk"
+    for label, url, kind, video_id in [
+        ("the task's Shorts URL", shorts, "youtube_short", "Sh8EPts-DXk"),
+        ("a bare youtube.com Shorts URL", "https://youtube.com/shorts/Sh8EPts-DXk",
+         "youtube_short", "Sh8EPts-DXk"),
+        ("a mobile Shorts URL with a query string",
+         "http://m.youtube.com/shorts/Sh8EPts-DXk?feature=share",
+         "youtube_short", "Sh8EPts-DXk"),
+        ("a Shorts URL with a trailing slash", shorts + "/", "youtube_short",
+         "Sh8EPts-DXk"),
+        ("a normal watch URL", "https://www.youtube.com/watch?v=Sh8EPts-DXk",
+         "youtube_video", "Sh8EPts-DXk"),
+        ("a watch URL inside a playlist",
+         "https://www.youtube.com/watch?v=Sh8EPts-DXk&list=PLxyz&index=3",
+         "youtube_video_with_playlist", "Sh8EPts-DXk"),
+        ("a youtu.be short link", "https://youtu.be/Sh8EPts-DXk?si=abc",
+         "youtube_video", "Sh8EPts-DXk"),
+        ("an embedded player", "https://www.youtube.com/embed/Sh8EPts-DXk?rel=0",
+         "youtube_embed", "Sh8EPts-DXk"),
+        ("an embedded player on the nocookie host",
+         "https://www.youtube-nocookie.com/embed/Sh8EPts-DXk", "youtube_embed",
+         "Sh8EPts-DXk"),
+        ("a live URL", "https://www.youtube.com/live/Sh8EPts-DXk", "youtube_live",
+         "Sh8EPts-DXk"),
+        ("a playlist", "https://www.youtube.com/playlist?list=PLabc",
+         "youtube_playlist", ""),
+        ("a channel handle", "https://www.youtube.com/@SomeChannel", "youtube_channel", ""),
+        ("a channel id", "https://www.youtube.com/channel/UCabc123", "youtube_channel", ""),
+        ("a search page", "https://www.youtube.com/results?search_query=physics+notes",
+         "youtube_search", ""),
+        ("an ordinary file link", "https://example.com/lecture.mp4", "direct_file", ""),
+        ("an ordinary web link", "https://example.com/watch?id=42", "web_link", ""),
+    ]:
+        info = snapserver.classify_source(url)
+        check(f"{label} is classified as {kind}", info.kind == kind,
+              f"got {info.kind} for {url}")
+        if video_id:
+            check(f"  ↳ its video id is read out ({label})", info.video_id == video_id,
+                  f"got {info.video_id!r}")
+            check(f"  ↳ and it is fetched by id, not as the page it came from ({label})",
+                  info.canonical.endswith("watch?v=" + video_id), info.canonical)
+        else:
+            check(f"  ↳ and it is not treated as a video ({label})", not info.video_id,
+                  info.video_id)
+
+    # An embedded player is a page. Nothing may hand it to the file downloader.
+    embed_url = "https://www.youtube.com/embed/Sh8EPts-DXk"
+    embed = snapserver.classify_source(embed_url)
+    check("an embedded player is not treated as a downloadable file",
+          embed.kind != "direct_file" and not snapserver._looks_like_media(embed_url),
+          f"kind={embed.kind}")
+
+    # playlists, channels and search pages are refused before any work starts
+    for label, url, word in [
+        ("a playlist", "https://www.youtube.com/playlist?list=PLabc", "playlist"),
+        ("a channel", "https://www.youtube.com/@SomeChannel", "channel"),
+        ("a search page", "https://www.youtube.com/results?search_query=notes", "search"),
+    ]:
+        body, content_type = multipart({"url": url}, "unused", "x", b"")
+        code, raw, _ = request("POST", base + "/api/fetch", data=body,
+                               headers={"Content-Type": content_type}, timeout=30)
+        payload = json.loads(raw.decode() or "{}")
+        check(f"{label} is refused up front", code == 400 and not payload.get("id"),
+              f"code={code} {raw[:140]}")
+        check(f"  ↳ with a reason that names it ({label})",
+              word in (payload.get("error", "") + payload.get("advice", "")).lower(),
+              str(payload)[:160])
+
+    # the real URL from the task, against the real YouTube
+    print("      (the Shorts URL, against youtube.com)")
+    body, content_type = multipart({"url": shorts}, "unused", "x", b"")
+    code, raw, _ = request("POST", base + "/api/fetch", data=body,
+                           headers={"Content-Type": content_type}, timeout=30)
+    check("the Shorts URL is accepted as a job", code == 200, f"{code} {raw[:160]}")
+    started = json.loads(raw.decode() or "{}")
+    check("the job says it is a YouTube Short",
+          started.get("source", {}).get("kind") == "youtube_short",
+          str(started.get("source")))
+    check("and carries the video id",
+          started.get("source", {}).get("video_id") == "Sh8EPts-DXk",
+          str(started.get("source")))
+    if started.get("id"):
+        state_yt = wait_ready(base, started["id"], timeout=240)
+        if state_yt.get("status") == "ready":
+            # This machine can reach YouTube: the video really was fetched.
+            print("      this machine reached YouTube - the video was fetched")
+            check("the Short was fetched and its pages detected",
+                  len(state_yt.get("pages", [])) > 0, str(state_yt.get("pages"))[:120])
+            check("  ↳ and the job is genuinely ready for detection",
+                  state_yt.get("can_capture") is True, str(state_yt.get("can_capture")))
+        else:
+            # It could not: the message has to say so honestly, and never fake success.
+            print(f"      youtube.com is not reachable from this machine "
+                  f"({state_yt.get('error_kind')}) - checking what the user is told")
+            check("a failed fetch never claims the video is ready",
+                  state_yt.get("status") == "failed" and not state_yt.get("pages"),
+                  f"{state_yt.get('status')} pages={len(state_yt.get('pages') or [])}")
+            said = f"{state_yt.get('error', '')} {state_yt.get('error_advice', '')}".lower()
+            check("it explains that the video plays but cannot be fetched here",
+                  "cannot" in said and ("browser" in said or "could not be reached" in said),
+                  said[:200])
+            check("  ↳ and it does not blame the user's connection",
+                  "check the connection" not in said and "check your internet" not in said,
+                  said[:200])
+            check("  ↳ and it offers the local file instead",
+                  "choose the file here" in said or "upload" in said, said[:200])
+
+    # The platform path itself, end to end: a *page* that embeds a video, which is
+    # what yt-dlp does for YouTube. This proves the integration, not the network.
+    with open(os.path.join(ROOT, "docs", "sample", "lecture.mp4"), "rb") as fh:
+        embedded_clip = fh.read()
+    page_html = (b"<!doctype html><html><head><title>Lecture 6 - Physics</title></head>"
+                 b"<body><video controls src='/media/lecture.mp4'></video></body></html>")
+
+    class PageHost(http.server.BaseHTTPRequestHandler):
+        def log_message(self, *args):                 # keep the output clean
+            pass
+
+        def do_GET(self):                             # noqa: N802
+            path = self.path.split("?")[0]
+            if path in ("/", "/watch"):
+                body, ctype = page_html, "text/html; charset=utf-8"
+            elif path == "/media/lecture.mp4":
+                body, ctype = embedded_clip, "video/mp4"
+            else:
+                body, ctype = b"", "text/plain"
+            self.send_response(200 if body else 404)
+            self.send_header("Content-Type", ctype)
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            if body:
+                self.wfile.write(body)
+
+    page_host = http.server.ThreadingHTTPServer(("127.0.0.1", 0), PageHost)
+    threading.Thread(target=page_host.serve_forever, daemon=True).start()
+    page_port = page_host.server_address[1]
+    try:
+        body, content_type = multipart({"url": f"http://127.0.0.1:{page_port}/watch?v=abc"},
+                                       "unused", "x", b"")
+        code, raw, _ = request("POST", base + "/api/fetch", data=body,
+                               headers={"Content-Type": content_type}, timeout=30)
+        check("a page that embeds a video is accepted", code == 200, f"{code} {raw[:140]}")
+        jid_page = json.loads(raw.decode() or "{}").get("id")
+        state_page = wait_ready(base, jid_page, timeout=240) if jid_page else {}
+        check("the extractor resolved the page's video and it was detected",
+              state_page.get("status") == "ready" and len(state_page.get("pages", [])) == 4,
+              f"{state_page.get('status')} {len(state_page.get('pages') or [])} pages "
+              f"{state_page.get('error')}")
+        check("  ↳ the title came from the page",
+              "Lecture 6" in (state_page.get("title") or ""), str(state_page.get("title")))
+        code, raw, _ = request("POST", f"{base}/api/jobs/{jid_page}/pdf")
+        check("  ↳ and a PDF from it verifies",
+              code == 200 and json.loads(raw.decode())["pdf"]["verified"] is True,
+              raw[:160])
+    finally:
+        page_host.shutdown()
+        page_host.server_close()
+
+    # ---- 12. the filename on the download --------------------------------- #
+    print("\n[12] download filenames, including other scripts")
+
+    # A title in Devanagari used to raise UnicodeEncodeError inside the header and
+    # answer 500: generation worked, the download did not. Every title here must come
+    # back as a real PDF, with the pages that are currently selected in it.
+    state_now = get_json(base, f"/api/jobs/{jid}")
+    expected_pages = state_now.get("selected_count") or 0
+    print(f"      (job {jid[:8]} currently has {expected_pages} page(s) selected)")
+    check("there is something selected to export", expected_pages > 0,
+          str(state_now.get("selected_count")))
+
+    for label, title, expect_name in [
+        ("plain english", "Chapter 6", "Chapter-6.pdf"),
+        ("hindi", "अध्याय 6", "अध्याय-6.pdf"),
+        ("punjabi", "ਪਾਠ 6", "ਪਾਠ-6.pdf"),
+        ("accented latin", "Café Notes", "Café-Notes.pdf"),
+        ("cjk", "第6章", "第6章.pdf"),
+        ("quotes", 'My "notes"', "My-notes.pdf"),
+        ("punctuation only", "!!!", "!!!.pdf"),   # legal, and it is what they typed
+        ("empty", "   ", "notes.pdf"),
+        ("a path", "../etc/passwd", "etcpasswd.pdf"),
+    ]:
+        code, raw, _ = request("POST", f"{base}/api/jobs/{jid}/pdf",
+                               json_body={"title": title})
+        generated = json.loads(raw.decode()) if code == 200 else {}
+        name = generated.get("pdf", {}).get("filename")
+        check(f"{label}: the PDF is generated", code == 200, f"code={code} {raw[:120]}")
+        check(f"  ↳ the name keeps the user's own script ({label})", name == expect_name,
+              f"got {name!r}, wanted {expect_name!r}")
+        ascii_name = generated.get("pdf", {}).get("filename_ascii", "")
+        check(f"  ↳ and there is an ASCII fallback for the header ({label})",
+              ascii_name.isascii() and ascii_name.endswith(".pdf"), repr(ascii_name))
+        code, data, headers = request("GET", f"{base}/api/jobs/{jid}/pdf")
+        check(f"  ↳ the download works ({label})",
+              code == 200 and data.startswith(b"%PDF-"), f"HTTP {code}")
+        if code == 200:
+            pages_in_file = len(PdfReader(io.BytesIO(data)).pages)
+            check(f"  ↳ the file opens and has the selected pages ({label})",
+                  pages_in_file == expected_pages,
+                  f"{pages_in_file} pages, expected {expected_pages}")
+            disposition = header(headers, "Content-Disposition")
+            star = urllib.parse.unquote(disposition.split("filename*=UTF-8''")[-1])
+            check(f"  ↳ filename* carries the real name ({label})", star == expect_name,
+                  f"{star!r} in {disposition!r}")
+            check(f"  ↳ the plain filename stays ASCII ({label})",
+                  disposition.split('filename="')[1].split('"')[0].isascii(), disposition)
+
     # ---- 11. server hygiene ---------------------------------------------- #
-    print("\n[11] server behaviour")
+    print("\n[13] server behaviour")
     code, raw, _ = request("GET", base + "/api/jobs/does-not-exist")
     check("unknown job -> 404", code == 404, f"got {code}")
     code, raw, _ = request("GET", base + "/api/jobs/does-not-exist/pdf")
@@ -753,7 +962,7 @@ def main() -> int:
 
     # the server must not have logged an unhandled exception anywhere
     log_text = open(log_path).read()
-    print("\n[12] server log")
+    print("\n[14] server log")
     check("no tracebacks in the server log", "Traceback (most recent call last)" not in log_text,
           log_text[-1500:] if "Traceback" in log_text else "")
     check("no 500 responses in the log", " 500 " not in log_text,

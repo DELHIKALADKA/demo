@@ -184,7 +184,8 @@ async function main() {
     const bytes = readFileSync(FIXTURE);
     const file = new window.File([bytes], 'lecture.mp4', { type: 'video/mp4' });
     const input = $('file');
-    Object.defineProperty(input, 'files', { value: [file], writable: false });
+    Object.defineProperty(input, 'files', { value: [file], writable: false,
+                                             configurable: true });
     input.dispatchEvent(new window.Event('change'));
 
     await waitFor('a job id was created', () => $('step-progress').style.display !== 'none', 15000);
@@ -320,8 +321,104 @@ async function main() {
       sheetImg ? sheetImg.src : 'none');
     $('lightbox').click();
 
-    // ── 11. failures of the download path ──────────────────────────────────
-    console.log('\n[11] download failures are reported, not saved');
+    // ── 13. failures of the download path ──────────────────────────────────
+    // ── 11. YouTube link kinds ─────────────────────────────────────────────
+    console.log('\n[11] YouTube Shorts through the page');
+    const failuresBeforeLinks = failedRequests.length;
+
+    // a channel is refused before any work starts, so this is deterministic
+    $('link').value = 'https://www.youtube.com/@SomeChannel';
+    $('import').click();
+    await waitFor('the channel link is refused',
+      () => /channel/i.test(text('err')) || /channel/i.test(text('url-state')), 20000, 100);
+    check('a channel link is refused with a reason',
+      /channel/i.test(text('err') + text('url-state')), (text('err') + text('url-state')).slice(0, 160));
+    check('  ↳ and no job was started', $('step-progress').style.display === 'none',
+      `progress=${$('step-progress').style.display}`);
+
+    // the real Shorts URL: it is recognised by its id, then either fetched or explained
+    $('link').value = 'https://www.youtube.com/shorts/Sh8EPts-DXk';
+    $('import').click();
+    await waitFor('the Shorts link is recognised',
+      () => /YouTube Short/i.test(text('url-state')) || /YouTube Short/i.test(text('err')), 20000, 100);
+    check('the page says it is importing a YouTube Short',
+      /YouTube Short/i.test(text('url-state') + text('err')),
+      (text('url-state') + ' | ' + text('err')).slice(0, 200));
+
+    // Wait for the outcome. The link row is the signal to wait on: the page only
+    // writes it for *this* job, so it cannot be confused with the grid left over
+    // from the earlier local upload. Either this machine can fetch YouTube and the
+    // row reports the import, or it cannot and the page must say so - without
+    // blaming the connection, and with the file upload offered instead.
+    await waitFor('the Shorts import reaches an outcome',
+      () => /\u2713 Imported/.test(text('url-state'))
+            || ($('err').style.display === 'block' && /youtube/i.test(text('err'))),
+      180000, 300);
+    if (/\u2713 Imported/.test(text('url-state'))) {
+      console.log('      this machine reached YouTube - the Short was fetched');
+      check('the Short was fetched and reported as imported',
+        /\u2713 Imported/.test(text('url-state')), text('url-state').slice(0, 160));
+      check('  \u21b3 and the review screen shows its pages', countPages() > 0,
+        `${countPages()} pages`);
+    } else {
+      const said = (text('err') + ' ' + text('url-state')).toLowerCase();
+      check('a Short that cannot be fetched is not reported as imported',
+        !/\u2713 Imported/.test(text('url-state')), text('url-state').slice(0, 160));
+      check('  \u21b3 the page explains it cannot be fetched from here',
+        said.includes('youtube')
+          && (said.includes('browser') || said.includes('could not be reached')),
+        said.slice(0, 200));
+      check('  \u21b3 and does not blame the connection',
+        !said.includes('check the connection') && !said.includes('check your internet'),
+        said.slice(0, 200));
+      check('  \u21b3 and offers the local file instead',
+        said.includes('choose the file here') || said.includes('upload'), said.slice(0, 200));
+    }
+    check('the YouTube calls were answered as expected',
+      failedRequests.length - failuresBeforeLinks === 1,
+      failedRequests.slice(failuresBeforeLinks).join(' | '));
+
+    // ── 12. a title in another script ──────────────────────────────────────
+    console.log('\n[12] a PDF named in Hindi');
+    // Section 11 may have left the page pointed at a job that failed, so upload the
+    // local video again: this section is about the filename, not about the network.
+    const hindiFile = new window.File([readFileSync(FIXTURE)], 'lecture.mp4',
+      { type: 'video/mp4' });
+    Object.defineProperty($('file'), 'files', { value: [hindiFile], writable: false,
+                                              configurable: true });
+    $('file').dispatchEvent(new window.Event('change'));
+    await waitFor('a fresh local upload for the naming test',
+      () => $('step-result').style.display !== 'none' && countPages() === 4, 120000, 200);
+    check('the fresh upload is ready for the naming test', countPages() === 4,
+      `${countPages()} pages`);
+    const downloadsBeforeHindi = window.__downloads.length;
+    $('title').value = 'अध्याय ६';
+    $('title').dispatchEvent(new window.Event('change'));
+    $('generate').click();
+    await waitFor('the PDF with a Hindi name is ready',
+      () => /is ready/.test(text('pdf-line')) && $('download').disabled === false, 90000);
+    check('a Hindi title does not break generation', /is ready/.test(text('pdf-line')),
+      text('pdf-line').slice(0, 160));
+    check('  ↳ the panel reports the file', /page/.test(text('pdf-meta')), text('pdf-meta'));
+    $('download').click();
+    await waitFor('the Hindi-named download starts',
+      () => window.__downloads.length > downloadsBeforeHindi, 30000);
+    const hindi = window.__downloads[window.__downloads.length - 1] || {};
+    check('a Hindi title can be downloaded', !!hindi.href, String(hindi.name));
+    check('  ↳ the saved name keeps the Hindi letters and ends in .pdf',
+      /अध्याय/.test(String(hindi.name)) && /\.pdf$/.test(String(hindi.name)), String(hindi.name));
+    const hindiBlob = window.__blobs.get(hindi.href);
+    if (hindiBlob) {
+      const head = new TextDecoder('latin1')
+        .decode(new Uint8Array(await hindiBlob.slice(0, 5).arrayBuffer()));
+      check('  ↳ and the bytes are a real PDF', head === '%PDF-', JSON.stringify(head));
+    } else {
+      check('  ↳ and the bytes are a real PDF', false, 'no blob');
+    }
+    check('  ↳ the download path stayed clean', consoleErrors.length === 0,
+      consoleErrors.slice(0, 3).join(' | '));
+
+    console.log('\n[13] download failures are reported, not saved');
     // The reorder in section 8 marked the file stale, so regenerate first: these
     // checks are about a download that fails, not about a disabled button.
     $('generate').click();
@@ -379,16 +476,16 @@ async function main() {
     check('no console errors from the failure handling', consoleErrors.length === 0,
       consoleErrors.slice(0, 3).join(' | '));
 
-    // ── 12. the browser layer stayed clean ─────────────────────────────────
-    console.log('\n[12] console + network hygiene');
+    // ── 14. the browser layer stayed clean ─────────────────────────────────
+    console.log('\n[14] console + network hygiene');
     check('no console errors', consoleErrors.length === 0,
       consoleErrors.slice(0, 4).join(' | '));
     const unexpected = failedRequests.filter((line) => !/-> (400|409|422|404)/.test(line));
     check('no unexpected failed requests', unexpected.length === 0,
       unexpected.slice(0, 5).join(' | '));
     const rejections = failedRequests.filter((line) => /-> 4\d\d/.test(line));
-    check('the only rejections are the two negative tests the page provoked',
-      rejections.length === 2, rejections.join(' | '));
+    check('the only rejections are the negative tests the page provoked',
+      rejections.length === 3, rejections.join(' | '));
     check('nothing ever answered 5xx',
       !failedRequests.some((line) => /-> 5\d\d/.test(line)), 'a 5xx was returned');
     check('jsdom\'s own blob-iframe limitation is the only environment gap',

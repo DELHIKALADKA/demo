@@ -9,8 +9,8 @@ server and the page around it.
 |---|---|
 | `prototype/server.py` | rewritten: URL validation, honest error mapping, background jobs, stable page ids, PDF generation + verification, manual capture, re-analysis |
 | `prototype/static/index.html` | rewritten against the new API; same visual style as before |
-| `prototype/tests/test_prototype.py` | new — 119 checks against a real running server |
-| `prototype/tests/ui_test.mjs` | new — 65 checks driving the real page in a DOM |
+| `prototype/tests/test_prototype.py` | new — 243 checks against a real running server |
+| `prototype/tests/ui_test.mjs` | new — 80 checks driving the real page in a DOM |
 | `prototype/package.json` | new — `npm test` runs both suites |
 | `README.md` | documents the prototype workflow, what it fetches and what it refuses |
 | `.gitignore` | ignores `node_modules/` and the test logs |
@@ -153,6 +153,77 @@ download that has not started), and while the file is stale the **preview** butt
 is disabled along with the download — the server refuses a stale file anyway, so
 the button should not offer it.
 
+## Third pass: the download bug, and YouTube Shorts
+
+### 11. A title in Hindi, Punjabi or Chinese made the download answer 500
+
+This was the download bug, and it is worth stating exactly because it looked like a
+browser problem and was not one.
+
+```
+$ curl -X POST .../pdf -d '{"title": "\u0905\u0927\u094d\u092f\u093e\u092f 6"}'   # "chapter 6"
+$ curl .../pdf?mode=download
+HTTP 500
+UnicodeEncodeError: 'latin-1' codec can't encode character '\u7b2c' in position 22
+```
+
+The PDF was generated perfectly every time. Sending it was what failed. `Starlette`
+encodes response headers as latin-1, and the filename went into `Content-Disposition`
+exactly as the user typed it — so any title outside latin-1 took the whole download
+down. `Café Notes` worked (é fits in latin-1); `अध्याय ६` did not; the failure hit
+English speakers with a stray curly quote too.
+
+**Fix, in two parts:**
+
+- The name now travels twice, as RFC 6266/5987 intends: `filename="Chapter-6.pdf"`
+  (ASCII, always encodable) and `filename*=UTF-8''...` (percent-encoded, the real
+  name). Every current browser prefers `filename*`, so the file saves as
+  `अध्याय-६.pdf`; anything older gets the ASCII fallback.
+- The name is no longer built by the engine's `safe_filename`, which keeps only
+  `isalnum()` characters — Devanagari vowel signs are not alphanumeric, so it was
+  silently mangling the word (`अध्याय` → `अधयय`). The server now strips only what
+  genuinely breaks a filename (`/ \ : * ? " < > |`, control characters, leading and
+  trailing dots and dashes).
+
+Tested across nine titles: English, Hindi, Punjabi, accented Latin, CJK, quotes,
+punctuation only, empty, and a path (`../etc/passwd` → `etcpasswd.pdf`). Every one
+downloads, opens in `pypdf`, and has the pages that are currently selected.
+
+### 12. A YouTube Short is its own kind of source, and says so
+
+A Short is not a file and not a generic web page. Pasting
+`https://www.youtube.com/shorts/Sh8EPts-DXk` now:
+
+1. **Recognises** it as a YouTube Short and **extracts the video id** (`Sh8EPts-DXk`).
+2. **Normalises** it to the canonical watch URL, so one code path handles a Short, a
+   `/watch` link, a `youtu.be` link, a `/live` link and an embedded player — all of
+   which are the same video at different addresses. The id is read out of the URL;
+   **an embedded player is never treated as a downloadable file**, it is a page.
+3. **Refuses, before any work, the things that are not a video**: playlists,
+   channels (including `@handles`) and search pages each get a message naming what
+   the link actually is.
+4. **Fetches only through the official extractor** (yt-dlp). Nothing signs in as the
+   user, nothing touches DRM, and no playback URL is scraped out of a player.
+5. **Only reports ready when the file is on disk** and has passed the container
+   check, exactly as before. A Short that cannot be fetched never reports success.
+6. When it cannot be fetched, it says **why**, in those words:
+
+   > You could not be reached from this machine… The video itself is fine — it plays
+   > in your browser, and nothing about the link is wrong. This server simply cannot
+   > get to YouTube from here. Save the video where it does play, then choose the
+   > file here.
+
+   And the local file upload is right there on the same screen.
+
+**What could not be tested here, honestly:** this sandbox has no route to YouTube
+(`TLS/SSL connection has been closed`), so a real Short has never been downloaded in
+this environment. What *is* tested: the classification of sixteen URL forms, the
+refusals, the video id, and — for the fetch path itself — a local page that embeds a
+video, which yt-dlp resolves and downloads, after which the detector finds all four
+pages. That is the same code path YouTube uses; the only untested link in the chain
+is YouTube's own extractor, which needs a network that can reach it. On a machine
+that can reach YouTube, the identical flow runs.
+
 ## What works now
 
 Paste a link **or** choose a file → detect → review → tick / remove / restore /
@@ -191,7 +262,7 @@ pip install fastapi "uvicorn[standard]" python-multipart yt-dlp pypdf
 python server.py --port 8000          # open http://localhost:8000
 
 npm install jsdom                     # once
-npm test                              # 119 API checks, then 65 browser checks
+npm test                              # 243 API checks, then 80 browser checks
 ```
 
 Manual pass, two minutes:
@@ -213,6 +284,6 @@ must surface a readable error, must **not** save a file, must not offer video
 advice, and the button must recover once the server is healthy again.
 
 One thing the sandbox cannot do: there is no browser here, so no screenshot was
-taken. The page's behaviour is covered by the 65 DOM checks (no console errors, no
+taken. The page's behaviour is covered by the 80 DOM checks (no console errors, no
 unexpected failed requests, and the download bytes start with `%PDF-`), but
 please give it one look yourself.

@@ -184,6 +184,17 @@ class PageEntry:
     manual: bool = False
 
 
+#: What a link turned out to be, decided before anything is fetched. Defined up here
+#: because a job carries one from the moment it is created.
+@dataclass
+class SourceInfo:
+    kind: str = "other"          # see classify_source
+    video_id: str = ""
+    canonical: str = ""          # what will actually be fetched, if we fetch at all
+    label: str = ""              # human words for the screen
+    plan: str = ""               # what we are going to do about it
+
+
 @dataclass
 class PdfState:
     status: str = "none"          # none | generating | ready | failed
@@ -192,7 +203,8 @@ class PdfState:
     revision: int = -1
     page_count: int = 0
     byte_size: int = 0
-    filename: str = ""
+    filename: str = ""                          # what the user should see, in their script
+    filename_ascii: str = ""                    # header-safe fallback
     data: Optional[bytes] = None
     verified: bool = False
     verify_note: str = ""
@@ -207,6 +219,7 @@ class SnapJob:
     options: JobOptions
     title: str = ""
     display_source: str = ""                 # what the user called it (name or URL)
+    source: SourceInfo = field(default_factory=SourceInfo)   # classified once, up front
     source_path: Optional[str] = None        # the file on disk, or None while importing
     status: str = "queued"                   # queued|downloading|analysing|ready|failed
     error: str = ""
@@ -263,7 +276,15 @@ class SnapJob:
         return {
             "id": self.id,
             "source": self.display_source,
-            "source_kind": "link" if self.display_source.startswith(("http://", "https://")) else "file",
+            # `source_kind` stays what the screen already keys off: how the video got
+            # here (a link or a local file). The *classification* - a YouTube Short,
+            # an embedded player, a direct file link - is additive, in source_class.
+            "source_kind": "link" if self.display_source.startswith(("http://", "https://"))
+            else "file",
+            "source_class": self.source.kind,
+            "source_label": self.source.label,
+            "source_video_id": self.source.video_id,
+            "source_plan": self.source.plan,
             "status": self.status,
             "error": self.error,
             "error_kind": self.error_kind,
@@ -289,6 +310,7 @@ class SnapJob:
                 "page_count": self.pdf.page_count,
                 "byte_size": self.pdf.byte_size,
                 "filename": self.pdf.filename,
+                "filename_ascii": self.pdf.filename_ascii,
                 "verified": self.pdf.verified,
                 "verify_note": self.pdf.verify_note,
                 "error": self.pdf.error,
@@ -352,6 +374,47 @@ def _new_job(options: JobOptions, title: str, display_source: str) -> SnapJob:
                     display_source=display_source)
     JOBS[jid] = store
     return store
+
+
+def _explain_for_source(store: SnapJob, problem: SourceProblem) -> SourceProblem:
+    """Say what actually went wrong when a platform video cannot be fetched.
+
+    A YouTube link failing is not the same as a broken link: the video is fine, it
+    plays in any browser, and the machine doing the fetching is the thing that
+    cannot reach it. That distinction is the whole difference between "check your
+    internet" (useless) and "playable, but this server cannot fetch it - upload the
+    file instead" (actionable).
+    """
+    kind = store.source.kind or ""
+    if not kind.startswith("youtube") or kind == "youtube_other":
+        return problem
+
+    what = store.source.label or "that video"
+    if problem.kind == "network":
+        return SourceProblem(
+            f"YouTube could not be reached from this machine, so {what} could not be "
+            "fetched.",
+            "cannot_fetch",
+            "The video itself is fine - it plays in your browser, and nothing about the "
+            "link is wrong. This server simply cannot get to YouTube from here. Save the "
+            "video where it does play, or use a downloader you are entitled to use, then "
+            "choose the file here.")
+    if problem.kind == "needs_login":
+        return SourceProblem(
+            "YouTube asked this machine to prove it is a signed-in person, and this "
+            "server will not sign in as you.",
+            "needs_login",
+            "The video is playable while you are signed in. Save it to this device from "
+            "there, then choose the file here - or set PAGESNAP_COOKIES to cookies you "
+            "exported yourself.")
+    if problem.kind in ("unsupported", "not_a_video", "expired_link"):
+        return SourceProblem(
+            f"YouTube would not hand {what} over to this machine.",
+            problem.kind,
+            (problem.advice + " " if problem.advice else "")
+            + "The video may still play perfectly in your browser. Save it from there and "
+              "choose the file here.")
+    return problem
 
 
 def _fail(store: SnapJob, problem: SourceProblem) -> None:
@@ -464,6 +527,104 @@ class _CheckedRedirects(urllib.request.HTTPRedirectHandler):
     def redirect_request(self, req, fp, code, msg, headers, newurl):    # noqa: N802
         _assert_allowed(newurl, redirecting=True)
         return super().redirect_request(req, fp, code, msg, headers, newurl)
+
+
+#: YouTube video ids are always 11 characters of this alphabet.
+YT_ID = re.compile(r"^[A-Za-z0-9_-]{11}$")
+YT_HOSTS = {"youtube.com", "www.youtube.com", "m.youtube.com", "music.youtube.com",
+            "youtube-nocookie.com", "www.youtube-nocookie.com", "youtu.be"}
+
+
+def _canonical_yt(video_id: str) -> str:
+    """The plain watch URL for a video id.
+
+    A Short, an embed and a watch link are three addresses for the same video.
+    Normalising to one address means one code path, and it is the form the
+    extractor is asked about rather than an embedded player page.
+    """
+    return f"https://www.youtube.com/watch?v={video_id}"
+
+
+_YT_REFUSE = {
+    "youtube_playlist": (
+        "That link is a playlist, not a video.",
+        "A playlist would be every video in it, one after another. Open the one video "
+        "you want and copy its own link."),
+    "youtube_channel": (
+        "That link is a channel, not a video.",
+        "Open the video you want and copy its link from the address bar or the Share menu."),
+    "youtube_search": (
+        "That link is a search results page, not a video.",
+        "Open the video you want and copy its link from the address bar."),
+}
+
+
+def classify_source(url: str) -> SourceInfo:
+    """Work out what a link is: a file, a YouTube Short, another platform, or a page.
+
+    A YouTube Short is treated as its own kind because it is not a file and not a
+    generic web page: it is a video on a platform, so its id is extracted, the link
+    is normalised to the canonical watch URL, and only the official extractor
+    (yt-dlp) ever touches it. Nothing here signs in as the user, and an embedded
+    player is never treated as a downloadable file - at most its id is read out of
+    the URL, which is the same public video by another address.
+    """
+    parts = urllib.parse.urlsplit(url)
+    host = (parts.hostname or "").lower()
+    path = parts.path.rstrip("/")
+    query = urllib.parse.parse_qs(parts.query)
+
+    if host == "youtu.be":
+        candidate = path.lstrip("/").split("/")[0]
+        if YT_ID.match(candidate):
+            return SourceInfo("youtube_video", candidate, _canonical_yt(candidate),
+                              "a YouTube video", "fetched with yt-dlp")
+        return SourceInfo("youtube_other", label="a youtu.be link")
+
+    if host in YT_HOSTS or host.endswith(".youtube.com"):
+        head, _, tail = path.lstrip("/").partition("/")
+        tail = tail.split("/")[0]
+        watched = (query.get("v") or [""])[0]
+
+        if head == "shorts":
+            if YT_ID.match(tail):
+                return SourceInfo(
+                    "youtube_short", tail, _canonical_yt(tail), "a YouTube Short",
+                    "fetched with yt-dlp, the same way any YouTube video is")
+            return SourceInfo("youtube_other", label="a YouTube Shorts link",
+                              plan="the video id could not be read from it")
+        if head in ("embed", "v", "e"):
+            # An embedded player is a page, not a file. Reading the id out of it and
+            # asking the extractor about that video is a different thing entirely.
+            if YT_ID.match(tail):
+                return SourceInfo("youtube_embed", tail, _canonical_yt(tail),
+                                  "an embedded YouTube player",
+                                  "the player page is not a file, so its video is fetched "
+                                  "by id instead")
+            return SourceInfo("youtube_other", label="an embedded player")
+        if head == "live":
+            if YT_ID.match(tail):
+                return SourceInfo("youtube_live", tail, _canonical_yt(tail),
+                                  "a YouTube live stream",
+                                  "tried as a normal video in case the stream has ended")
+        if head == "playlist" or ("list" in query and not watched):
+            return SourceInfo("youtube_playlist", label="a YouTube playlist")
+        if head == "results":
+            return SourceInfo("youtube_search", label="a YouTube search page")
+        if head.startswith("@") or head in ("channel", "c", "user"):
+            return SourceInfo("youtube_channel", label="a YouTube channel")
+        if watched and YT_ID.match(watched):
+            if "list" in query:
+                return SourceInfo("youtube_video_with_playlist", watched,
+                                  _canonical_yt(watched), "a YouTube video",
+                                  "fetched on its own, without the playlist around it")
+            return SourceInfo("youtube_video", watched, _canonical_yt(watched),
+                              "a YouTube video", "fetched with yt-dlp")
+        return SourceInfo("youtube_other", label="a YouTube page")
+
+    if _looks_like_media(url):
+        return SourceInfo("direct_file", canonical=url, label="a video file link")
+    return SourceInfo("web_link", canonical=url, label="a link")
 
 
 def _looks_like_media(url: str) -> bool:
@@ -735,14 +896,47 @@ def _import_link(store: SnapJob, url: str) -> None:
         store.download = Progress("download finished", 1.0)
         _analyse(store)
     except SourceProblem as problem:
-        _fail(store, problem)
+        _fail(store, _explain_for_source(store, problem))
     except Exception as exc:                          # noqa: BLE001
-        _fail(store, explain_ytdlp(exc))
+        _fail(store, _explain_for_source(store, explain_ytdlp(exc)))
 
 
 # --------------------------------------------------------------------------- #
 # PDF: generate, verify, and refuse to hand back a stale one
 # --------------------------------------------------------------------------- #
+
+#: Characters that cannot appear in a filename on Windows, macOS or Android.
+_BAD_NAME_CHARS = set('\\/:*?"<>|')
+
+
+def download_names(title: str) -> Tuple[str, str]:
+    """(the name to save as, an ASCII fallback) - both ending in .pdf.
+
+    Titles are free text, and a student here writes them in Punjabi, Hindi and
+    English. Two separate problems meet in this function:
+
+    * A filename must not contain path separators or quotes, but it should keep the
+      letters the user typed. The engine's `safe_filename` keeps only `isalnum()`
+      characters, and Devanagari vowel signs are not alphanumeric - so it silently
+      mangles the word: "अध्याय" comes out as "अधयय".
+    * An HTTP header is latin-1. Putting a Devanagari or CJK name straight into
+      `Content-Disposition` raised UnicodeEncodeError, which meant generating a PDF
+      worked and *downloading* it answered 500. That was the download bug. The name
+      now also travels as `filename*=UTF-8''...` (RFC 5987), which browsers prefer
+      and anything else can decode, and the plain `filename=` is pure ASCII.
+    """
+    cleaned = "".join(ch for ch in (title or "")
+                      if ch.isprintable() and ch not in _BAD_NAME_CHARS)
+    cleaned = "-".join(cleaned.split()).strip(" .-_")[:80].strip(" .-_")
+    if cleaned.lower().endswith(".pdf"):
+        cleaned = cleaned[:-4].strip(" .-_")
+    if not cleaned:
+        cleaned = "notes"
+
+    ascii_stem = "-".join("".join(ch for ch in cleaned if ord(ch) < 128).split())
+    ascii_stem = ascii_stem.strip(" .-_")[:80].strip(" .-_") or "notes"
+    return cleaned + ".pdf", ascii_stem + ".pdf"
+
 
 def _verify_pdf(data: bytes, expected_pages: int, expected_title: str) -> Tuple[bool, int, str]:
     """Check the bytes really are a PDF with the pages we think it has.
@@ -813,7 +1007,7 @@ def _generate_pdf(store: SnapJob) -> None:
         store.pdf.data = data
         store.pdf.page_count = count
         store.pdf.byte_size = len(data)
-        store.pdf.filename = to_pdf_filename(store.title or "notes")
+        store.pdf.filename, store.pdf.filename_ascii = download_names(store.title or "notes")
         store.pdf.verified = True
         store.pdf.verify_note = note
         store.pdf.created = time.time()
@@ -853,7 +1047,18 @@ def sources() -> JSONResponse:
                 "the link points straight at a video file (.mp4, .webm, .mov...)",
                 "or the site serves it publicly without a login",
             ],
-            "often_needs_login": ["Instagram", "Facebook", "many YouTube videos"],
+            "often_needs_login": ["Instagram", "Facebook",
+                                  "YouTube videos that trigger its bot check"],
+            "youtube": {
+                "shorts": "supported: a /shorts/ link is recognised, its video id read, "
+                          "and the video fetched by id with yt-dlp",
+                "watch_and_short_links": "supported the same way, including youtu.be",
+                "embed_links": "an embedded player is a page, not a file - its video id is "
+                               "used instead of the player",
+                "refused_up_front": ["playlists", "channels", "search pages"],
+                "needs": "this machine has to be able to reach YouTube. If it cannot, the "
+                         "link still plays in your browser and the file can be uploaded.",
+            },
             "never": ["DRM-protected video (Netflix, Prime, etc.)",
                       "private or paid content",
                       "live streams"],
@@ -916,12 +1121,25 @@ def fetch_link(url: str = Form(""), sensitivity: str = Form("balanced"),
         return JSONResponse({"error": problem.message, "kind": problem.kind,
                              "advice": problem.advice}, status_code=400)
 
+    info = classify_source(url)
+    if info.kind in _YT_REFUSE:
+        message, advice = _YT_REFUSE[info.kind]
+        return JSONResponse({"error": message, "kind": "wrong_link", "advice": advice},
+                            status_code=400)
+
     store = _new_job(_preset_options(sensitivity, image_format, quality, title,
                                      max_width, grayscale), title, url)
+    store.source = info
     store.status = "downloading"
     store.progress = Progress("checking the link", 0.02)
-    threading.Thread(target=_import_link, args=(store, url), daemon=True).start()
-    return JSONResponse({"id": store.id, "status": store.status})
+    # The job fetches `canonical` (for a Short, the same video at its watch address)
+    # while the screen keeps showing the link the user pasted.
+    threading.Thread(target=_import_link, args=(store, info.canonical or url),
+                     daemon=True).start()
+    return JSONResponse({
+        "id": store.id, "status": store.status,
+        "source": {"kind": info.kind, "transport": "link", "label": info.label,
+                   "video_id": info.video_id, "plan": info.plan}})
 
 
 @app.get("/api/jobs/{jid}")
@@ -1115,9 +1333,15 @@ def fetch_pdf(jid: str, mode: str = "download") -> Response:
         raise HTTPException(409, "The page list changed after this PDF was generated - "
                                  "generate it again so the file matches what you see.")
     disposition = "inline" if mode == "preview" else "attachment"
+    # `filename` is ASCII so the header can always be encoded; `filename*` carries
+    # the name the user actually chose. Both are needed: the first for old clients,
+    # the second for every current browser.
+    ascii_name = store.pdf.filename_ascii or "notes.pdf"
+    quoted = urllib.parse.quote(store.pdf.filename or "notes.pdf", safe="")
     return Response(
         store.pdf.data, media_type="application/pdf",
-        headers={"Content-Disposition": f'{disposition}; filename="{store.pdf.filename}"',
+        headers={"Content-Disposition": f"{disposition}; filename=\"{ascii_name}\"; "
+                                        f"filename*=UTF-8''{quoted}",
                  "X-Page-Count": str(store.pdf.page_count),
                  "X-Revision": str(store.pdf.revision)},
     )

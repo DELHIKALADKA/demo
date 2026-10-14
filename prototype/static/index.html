@@ -316,7 +316,11 @@ $('import').onclick = async () => {
   try {
     const started = await api('/api/fetch', {method:'POST', body: form({url})});
     jobId = started.id;
-    urlState('<span class="spin"></span>Importing…', 'busy');
+    // Say what the link turned out to be - a Short, a video, a file link - instead
+    // of a generic "importing" that hides which source is being fetched.
+    const what = started.source && started.source.label;
+    urlState('<span class="spin"></span>Importing ' + (what ? esc(what) : 'the video') + '…',
+             'busy');
     show('progress');
     startPolling();
   } catch (error) {
@@ -742,6 +746,10 @@ fetch('/api/sources').then(r => r.json()).then(info => {
   items.push(`<li><b>Often asks for a login:</b> ${info.link.often_needs_login.map(esc).join(', ')}. ` +
              `This server will not pretend to be you — it will say so, and you can upload the file instead.</li>`);
   items.push(`<li><b>Never:</b> ${info.link.never.map(esc).join('; ')}.</li>`);
+  items.push('<li><b>YouTube:</b> a Short or a normal video link is recognised by its ' +
+             'video id and fetched with yt-dlp — no login, no DRM bypass. An embedded ' +
+             'player is a page, not a file, so its video id is used instead. Playlists, ' +
+             'channels and search pages are refused up front.</li>');
   items.push('<li><b>Files from this device always work</b> and never touch the network.</li>');
   $('src-list').innerHTML = items.join('');
 }).catch(() => {
