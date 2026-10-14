@@ -106,7 +106,7 @@ To deploy without a new commit: Actions → "Deploy PageSnap to GitHub Pages" �
 ## Building and checking locally
 
 ```bash
-python3 docs/build_site.py            # -> _site/
+python3 docs/build_site.py            # -> _site/     (Windows: py docs/build_site.py)
 python3 -m http.server -d _site 8000  # serve it the way Pages would
 # open http://localhost:8000/
 ```
@@ -120,9 +120,11 @@ python3 -m http.server -d . 8000      # then open http://localhost:8000/_site/
 Run the app's own tests (no server needed):
 
 ```bash
-python3 engine/tests/make_fixtures.py   # the five ground-truth videos
+python3 engine/tests/make_fixtures.py   # the five ground-truth videos  (Windows: py)
 node docs/test/run.mjs                  # 15/15 expected
 ```
+
+On Windows use `py` rather than `python3` — see [`TROUBLESHOOTING.md`](TROUBLESHOOTING.md).
 
 Run the local server prototype (links, more options):
 
