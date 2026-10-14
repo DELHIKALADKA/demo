@@ -46,9 +46,10 @@ class FrameSampler(
             val durationUs = if (format.containsKey(MediaFormat.KEY_DURATION))
                 format.getLong(MediaFormat.KEY_DURATION) else 0L
 
-            codec = MediaCodec.createDecoderByType(mime)
-            codec.configure(format, null, null, 0)   // no surface: we want the pixels
-            codec.start()
+            val decoder = MediaCodec.createDecoderByType(mime)
+            codec = decoder
+            decoder.configure(format, null, null, 0)   // no surface: we want the pixels
+            decoder.start()
 
             val info = MediaCodec.BufferInfo()
             val stepUs = (1_000_000.0 / fps).toLong()
@@ -60,28 +61,28 @@ class FrameSampler(
 
             while (!sawOutputEnd) {
                 if (!sawInputEnd) {
-                    val inIndex = codec.dequeueInputBuffer(10_000)
+                    val inIndex = decoder.dequeueInputBuffer(10_000)
                     if (inIndex >= 0) {
-                        val buffer = codec.getInputBuffer(inIndex)!!
+                        val buffer = decoder.getInputBuffer(inIndex)!!
                         val size = extractor.readSampleData(buffer, 0)
                         if (size < 0) {
-                            codec.queueInputBuffer(inIndex, 0, 0, 0, MediaCodec.BUFFER_FLAG_END_OF_STREAM)
+                            decoder.queueInputBuffer(inIndex, 0, 0, 0, MediaCodec.BUFFER_FLAG_END_OF_STREAM)
                             sawInputEnd = true
                         } else {
-                            codec.queueInputBuffer(inIndex, 0, size, extractor.sampleTime, 0)
+                            decoder.queueInputBuffer(inIndex, 0, size, extractor.sampleTime, 0)
                             extractor.advance()
                         }
                     }
                 }
 
-                when (val outIndex = codec.dequeueOutputBuffer(info, 10_000)) {
+                when (val outIndex = decoder.dequeueOutputBuffer(info, 10_000)) {
                     MediaCodec.INFO_TRY_AGAIN_LATER -> Unit
                     MediaCodec.INFO_OUTPUT_FORMAT_CHANGED -> Unit
                     else -> {
                         if (outIndex >= 0) {
                             val pts = info.presentationTimeUs
                             if (pts >= nextEmitUs && info.size > 0) {
-                                val image = codec.getOutputImage(outIndex)
+                                val image = decoder.getOutputImage(outIndex)
                                 if (image != null && image.planes.isNotEmpty()) {
                                     val plane = image.planes[0]
                                     val rowStride = plane.rowStride
@@ -94,7 +95,7 @@ class FrameSampler(
                                 }
                                 while (nextEmitUs <= pts) nextEmitUs += stepUs
                             }
-                            codec.releaseOutputBuffer(outIndex, false)
+                            decoder.releaseOutputBuffer(outIndex, false)
                             if (info.flags and MediaCodec.BUFFER_FLAG_END_OF_STREAM != 0) sawOutputEnd = true
                         }
                     }
