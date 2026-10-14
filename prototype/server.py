@@ -30,6 +30,7 @@ when you paste a link.
 from __future__ import annotations
 
 import argparse
+import importlib.util
 import io
 import json
 import ipaddress
@@ -50,6 +51,71 @@ from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Set, Tuple
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "engine"))
+
+# --------------------------------------------------------------------------- #
+# Before importing anything third-party: check this machine can actually run
+# PageSnap, and say exactly what to do when it cannot. A raw ModuleNotFoundError
+# traceback is the most common reason a first run fails, and it tells the person
+# reading it nothing useful.
+# --------------------------------------------------------------------------- #
+
+REQUIRED_PACKAGES = [
+    ("fastapi", "fastapi"),
+    ("uvicorn", "uvicorn[standard]"),
+    ("multipart", "python-multipart"),
+    ("PIL", "Pillow"),
+    ("numpy", "numpy"),
+    ("reportlab", "reportlab"),
+    ("imageio_ffmpeg", "imageio-ffmpeg"),
+]
+#: Missing these does not stop PageSnap; it degrades politely instead.
+OPTIONAL_PACKAGES = [("yt_dlp", "yt-dlp", "importing links"),
+                     ("pypdf", "pypdf", "re-reading the PDF to check it")]
+
+
+def _missing(packages):
+    missing = []
+    for entry in packages:
+        try:
+            found = importlib.util.find_spec(entry[0])
+        except (ImportError, ValueError):
+            found = None
+        if found is None:
+            missing.append(entry)
+    return missing
+
+
+def _require_ready() -> None:
+    """Stop with instructions if PageSnap cannot start, and warn if it is partial."""
+    if sys.version_info < (3, 9):
+        print("PageSnap needs Python 3.9 or newer.\n"
+              f"This is Python {sys.version.split()[0]} from {sys.executable}\n\n"
+              "Install a newer Python from https://www.python.org/downloads/ and run\n"
+              "PageSnap with that one.\n")
+        raise SystemExit(1)
+
+    missing = _missing(REQUIRED_PACKAGES)
+    if missing:
+        names = ", ".join(package for _, package in missing)
+        print("\nPageSnap cannot start yet: some Python packages are missing.\n")
+        print(f"  missing: {names}\n")
+        print("Install them with this exact command (copy the whole line):\n")
+        print(f'    "{sys.executable}" -m pip install -r requirements.txt\n')
+        print("Run it from the folder that contains requirements.txt (the PageSnap "
+              "folder).\nThen start PageSnap again.\n")
+        raise SystemExit(1)
+
+    gentle = _missing(OPTIONAL_PACKAGES)
+    if gentle:
+        # Not fatal: links still import if yt-dlp is there, and the PDF is still
+        # written without pypdf - it is only re-read for verification.
+        print("Note: these optional packages are missing, so part of PageSnap is limited:")
+        for _, package, what in gentle:
+            print(f"  - {package} (used for {what})")
+        print(f'  To add them:  "{sys.executable}" -m pip install -r requirements.txt\n')
+
+
+_require_ready()
 
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile                  # noqa: E402
 from fastapi.responses import HTMLResponse, JSONResponse, Response                  # noqa: E402
@@ -1512,17 +1578,70 @@ def drop(jid: str) -> JSONResponse:
     return JSONResponse({"ok": True})
 
 
+def _port_free(port: int) -> bool:
+    with socket.socket() as probe:
+        probe.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        try:
+            probe.bind(("0.0.0.0", port))
+            return True
+        except OSError:
+            return False
+
+
+def _already_running(port: int) -> bool:
+    """Is the thing on this port PageSnap itself? (Then there is nothing to start.)"""
+    try:
+        with urllib.request.urlopen(
+                f"http://127.0.0.1:{port}/api/sources", timeout=2) as response:
+            payload = json.loads(response.read().decode())
+        return isinstance(payload, dict) and "file" in payload and "link" in payload
+    except Exception:                                        # noqa: BLE001
+        return False
+
+
+def _choose_port(wanted: int) -> Tuple[int, str]:
+    """(the port to use, a note to print). Never guesses in silence."""
+    if _port_free(wanted):
+        return wanted, ""
+    if _already_running(wanted):
+        print(f"\nPageSnap is ALREADY running on http://localhost:{wanted}\n"
+              "Just open that address in your browser — there is nothing to start.\n"
+              f"(For a second copy at the same time, use: --port {wanted + 1})\n")
+        raise SystemExit(0)
+    for candidate in range(wanted + 1, wanted + 11):
+        if _port_free(candidate):
+            return candidate, (f"Port {wanted} is being used by something else on this "
+                               f"computer, so PageSnap started on {candidate} instead.")
+    print(f"\nPorts {wanted} to {wanted + 10} are all busy. Start PageSnap on a free one:\n\n"
+          f"    python prototype/server.py --port 4580\n")
+    raise SystemExit(1)
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(description="PageSnap prototype server")
-    ap.add_argument("--port", type=int, default=4567)
-    ap.add_argument("--host", default="0.0.0.0")
+    ap.add_argument("--port", type=int, default=4567,
+                    help="port to serve on (default 4567; the next free one is used if "
+                         "this is taken)")
+    ap.add_argument("--host", default="0.0.0.0",
+                    help="address to bind (default 0.0.0.0, so a phone on the same "
+                         "network can reach it; use 127.0.0.1 for this computer only)")
     args = ap.parse_args()
     os.makedirs(WORK, exist_ok=True)
     import uvicorn
 
-    print(f"PageSnap is running - open http://localhost:{args.port} in your browser",
-          flush=True)
-    uvicorn.run(app, host=args.host, port=args.port, log_level="warning")
+    port, note = _choose_port(args.port)
+    if note:
+        print("\n" + note, flush=True)
+    print(f"\nPageSnap is running - open http://localhost:{port} in your browser\n"
+          f"Press Ctrl+C here to stop it.\n", flush=True)
+    try:
+        uvicorn.run(app, host=args.host, port=port, log_level="warning")
+    except KeyboardInterrupt:
+        print("\nStopped.\n")
+    except OSError as exc:
+        print(f"\nCould not use port {port}: {exc}\n"
+              f"Try another one:  python prototype/server.py --port {port + 1}\n")
+        raise SystemExit(1)
 
 
 if __name__ == "__main__":

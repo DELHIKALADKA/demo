@@ -46,6 +46,11 @@ Needs Python 3.9 or newer and nothing else — no compiler, and no ffmpeg to ins
 because `imageio-ffmpeg` brings its own. It works from any directory, and on any
 port: `--port 4570` if 4567 is busy.
 
+**If it will not start, see [`TROUBLESHOOTING.md`](TROUBLESHOOTING.md).** The server
+checks its own setup before anything else: a missing package, an old Python, or a port
+that is already taken each produce a plain message with the exact command to fix it,
+rather than a traceback.
+
 The prototype is a phone-shaped app: **Home · Create · Library · Settings** with a
 bottom navigation bar, dark by default and a light theme in Settings. The workflow is
 **paste a link *or* choose a video → detect → review → reorder / remove / add a page by
