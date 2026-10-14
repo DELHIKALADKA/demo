@@ -38,10 +38,13 @@ python -m pagesnap.cli tests/fixtures/lecture.mp4 -o notes.pdf --explain
 ```
 
 ```bash
-cd prototype
-pip install fastapi "uvicorn[standard]" python-multipart yt-dlp pypdf
-python server.py                      # then open http://localhost:4567
+pip install -r requirements.txt       # everything, including the engine's needs
+python prototype/server.py            # then open http://localhost:4567
 ```
+
+Needs Python 3.9 or newer and nothing else — no compiler, and no ffmpeg to install,
+because `imageio-ffmpeg` brings its own. It works from any directory, and on any
+port: `--port 4570` if 4567 is busy.
 
 The prototype is the full workflow in a browser: **paste a link *or* choose a video
 → detect → review → reorder / remove / add a page by timestamp → Generate PDF →
