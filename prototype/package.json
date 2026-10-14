@@ -4,7 +4,7 @@
   "private": true,
   "description": "The server-backed PageSnap prototype: import a link or upload a video, review and edit the detected pages, generate a PDF.",
   "scripts": {
-    "start": "python3 server.py --port 8000",
+    "start": "python3 server.py --port 4567",
     "test": "npm run test:api && npm run test:ui",
     "test:api": "python3 tests/test_prototype.py",
     "test:ui": "node tests/ui_test.mjs"

@@ -24,7 +24,7 @@ What this file owns
 Nothing leaves the machine: the only outbound requests are the ones you ask for
 when you paste a link.
 
-    python prototype/server.py --port 8000
+    python prototype/server.py                # http://localhost:4567
 """
 
 from __future__ import annotations
@@ -1357,12 +1357,14 @@ def drop(jid: str) -> JSONResponse:
 
 def main() -> None:
     ap = argparse.ArgumentParser(description="PageSnap prototype server")
-    ap.add_argument("--port", type=int, default=8000)
+    ap.add_argument("--port", type=int, default=4567)
     ap.add_argument("--host", default="0.0.0.0")
     args = ap.parse_args()
     os.makedirs(WORK, exist_ok=True)
     import uvicorn
 
+    print(f"PageSnap is running - open http://localhost:{args.port} in your browser",
+          flush=True)
     uvicorn.run(app, host=args.host, port=args.port, log_level="warning")
 
 

@@ -259,7 +259,7 @@ is matched against the page image it came from.
 ```bash
 cd prototype
 pip install fastapi "uvicorn[standard]" python-multipart yt-dlp pypdf
-python server.py --port 8000          # open http://localhost:8000
+python server.py                      # open http://localhost:4567
 
 npm install jsdom                     # once
 npm test                              # 243 API checks, then 80 browser checks

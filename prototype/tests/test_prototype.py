@@ -428,8 +428,9 @@ def run(base: str) -> None:
                   for word in ("reach", "connect", "network", "refused", "download")),
               str(state_dead.get("error"))[:160])
 
-    # an HTML page that is reachable but is not a video
-    body, content_type = multipart({"url": "http://127.0.0.1:8000/"}, "unused", "x", b"")
+    # an HTML page that is reachable but is not a video - the prototype's own page,
+    # whatever port it happens to be on, so this test never depends on a fixed port
+    body, content_type = multipart({"url": base + "/"}, "unused", "x", b"")
     try:
         code, raw, _ = request("POST", base + "/api/fetch", data=body,
                                headers={"Content-Type": content_type}, timeout=120)
@@ -564,7 +565,7 @@ def run(base: str) -> None:
         except snapserver.SourceProblem as problem:
             check(f"a redirect to {label} is refused", expect in problem.message,
                   problem.message)
-    snapserver._assert_allowed("http://127.0.0.1:8000/sample.mp4", redirecting=True)
+    snapserver._assert_allowed("http://127.0.0.1:4567/sample.mp4", redirecting=True)
     check("an ordinary redirect target is still allowed", True)
 
     # A small host that serves the same video under several disguises.

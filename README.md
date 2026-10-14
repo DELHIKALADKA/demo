@@ -40,7 +40,7 @@ python -m pagesnap.cli tests/fixtures/lecture.mp4 -o notes.pdf --explain
 ```bash
 cd prototype
 pip install fastapi "uvicorn[standard]" python-multipart yt-dlp pypdf
-python server.py --port 8000          # then open http://localhost:8000
+python server.py                      # then open http://localhost:4567
 ```
 
 The prototype is the full workflow in a browser: **paste a link *or* choose a video
