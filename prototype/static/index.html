@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>PageSnap — video to notes PDF</title>
+<style>
+  :root{
+    --bg:#0f1115; --panel:#171a21; --panel2:#1e222b; --line:#2a2f3a;
+    --ink:#e9edf5; --dim:#98a2b3; --accent:#e0533f; --accent2:#ff7a63;
+    --good:#3ecf8e; --warn:#f0b429;
+    --radius:14px;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0; background:var(--bg); color:var(--ink);
+    font:15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:900px;margin:0 auto;padding:22px 16px 64px}
+  header{display:flex;align-items:center;gap:12px;margin-bottom:6px}
+  .logo{width:38px;height:38px;border-radius:11px;background:linear-gradient(145deg,var(--accent),var(--accent2));
+        display:grid;place-items:center;font-size:19px;box-shadow:0 6px 18px rgba(224,83,63,.35)}
+  h1{font-size:21px;margin:0;letter-spacing:-.3px}
+  .sub{color:var(--dim);font-size:13.5px;margin:0 0 20px 50px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:18px;margin-bottom:14px}
+  .drop{
+    border:1.5px dashed #39404f;border-radius:var(--radius);padding:26px 18px;text-align:center;
+    background:var(--panel2);transition:.15s;cursor:pointer
+  }
+  .drop.hot{border-color:var(--accent);background:#241a19}
+  .drop b{font-size:16px;display:block;margin-bottom:4px}
+  .drop span{color:var(--dim);font-size:13px}
+  .btn{
+    appearance:none;border:0;border-radius:11px;padding:12px 18px;font-size:15px;font-weight:600;
+    background:var(--accent);color:#fff;cursor:pointer;transition:.15s;font-family:inherit
+  }
+  .btn:hover{background:var(--accent2)}
+  .btn:disabled{opacity:.45;cursor:not-allowed}
+  .btn.ghost{background:var(--panel2);color:var(--ink);border:1px solid var(--line)}
+  .btn.ghost:hover{background:#252a35}
+  .btn.big{width:100%;padding:15px;font-size:16px}
+  .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+  .row.tight{gap:8px}
+  label.field{display:block;font-size:12.5px;color:var(--dim);margin:0 0 6px;text-transform:uppercase;letter-spacing:.6px}
+  input[type=text],select{
+    width:100%;background:#12151b;border:1px solid var(--line);color:var(--ink);
+    border-radius:10px;padding:11px 12px;font-size:15px;font-family:inherit
+  }
+  input[type=text]:focus,select:focus{outline:2px solid rgba(224,83,63,.4);border-color:var(--accent)}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  @media(max-width:560px){.grid2{grid-template-columns:1fr}}
+  .hint{color:var(--dim);font-size:12.5px;margin-top:8px}
+  .bar{height:7px;background:#12151b;border-radius:99px;overflow:hidden;margin:12px 0 8px}
+  .bar>i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--accent),var(--accent2));transition:width .35s}
+  .stage{font-size:13.5px;color:var(--dim)}
+  .stage b{color:var(--ink)}
+  .pages{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px;margin-top:14px}
+  .page{background:var(--panel2);border:1px solid var(--line);border-radius:12px;overflow:hidden;position:relative}
+  .page img{display:block;width:100%;background:#222}
+  .page.off{opacity:.4}
+  .page .meta{display:flex;justify-content:space-between;align-items:center;padding:8px 9px;font-size:12px;color:var(--dim);gap:6px}
+  .page .tag{background:#12151b;border-radius:6px;padding:2px 6px}
+  .tick{position:absolute;top:8px;left:8px;width:24px;height:24px;border-radius:7px;background:rgba(10,12,16,.72);
+        border:1px solid #454c5c;display:grid;place-items:center;cursor:pointer;font-size:14px}
+  .tick.on{background:var(--good);border-color:var(--good);color:#06231a}
+  .err{background:#2a1618;border:1px solid #5c2a2c;color:#ffb4ac;border-radius:11px;padding:12px 14px;font-size:14px;margin-top:12px}
+  .ok{color:var(--good)}
+  .foot{color:var(--dim);font-size:12.5px;text-align:center;margin-top:26px;line-height:1.7}
+  .pill{display:inline-block;background:var(--panel2);border:1px solid var(--line);border-radius:99px;padding:3px 10px;font-size:12px;color:var(--dim)}
+  .lightbox{position:fixed;inset:0;background:rgba(6,8,11,.93);display:none;place-items:center;padding:18px;z-index:50}
+  .lightbox.on{display:grid}
+  .lightbox img{max-width:100%;max-height:88vh;border-radius:10px;box-shadow:0 20px 60px rgba(0,0,0,.6)}
+  .lightbox .close{position:absolute;top:16px;right:20px;font-size:26px;color:#fff;cursor:pointer;opacity:.8}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="logo">📄</div>
+    <div><h1>PageSnap</h1></div>
+  </header>
+  <p class="sub">Turn a video of notes into a clean PDF — one screenshot per page, nothing else.</p>
+
+  <!-- 1. input ------------------------------------------------------------ -->
+  <section class="card" id="step-input">
+    <div class="drop" id="drop">
+      <b>Choose a video from this device</b>
+      <span>or drag one here — mp4, mov, mkv, webm</span>
+      <input type="file" id="file" accept="video/*" hidden>
+    </div>
+
+    <div class="row" style="margin-top:14px">
+      <input type="text" id="link" placeholder="…or paste an Instagram / Facebook / YouTube link">
+      <button class="btn ghost" id="fetch" style="white-space:nowrap">Fetch link</button>
+    </div>
+    <div class="hint">
+      Links only work in this computer version (it downloads with yt-dlp). A browser alone can never do
+      that — which is why the phone app is a real app.
+    </div>
+
+    <details style="margin-top:16px">
+      <summary style="cursor:pointer;color:var(--dim);font-size:13.5px">Options</summary>
+      <div class="grid2" style="margin-top:14px">
+        <div>
+          <label class="field" for="sens">How eager should it be?</label>
+          <select id="sens">
+            <option value="balanced" selected>Balanced — recommended</option>
+            <option value="strict">Strict — fewer, sure pages</option>
+            <option value="eager">Eager — catch subtle changes</option>
+          </select>
+        </div>
+        <div>
+          <label class="field" for="fmt">Pictures inside the PDF</label>
+          <select id="fmt">
+            <option value="jpeg" selected>Sharp JPEG (small file)</option>
+            <option value="png">Lossless PNG (bigger, best for diagrams)</option>
+          </select>
+        </div>
+      </div>
+    </details>
+  </section>
+
+  <!-- 2. progress --------------------------------------------------------- -->
+  <section class="card" id="step-progress" style="display:none">
+    <div class="stage" id="stage"><b>Working…</b></div>
+    <div class="bar"><i id="barfill"></i></div>
+    <div class="stage" id="stage2"></div>
+  </section>
+
+  <!-- 3. results ---------------------------------------------------------- -->
+  <section class="card" id="step-result" style="display:none">
+    <div class="row" style="justify-content:space-between;align-items:flex-end">
+      <div>
+        <div class="stage" id="summary"><b>Pages found</b></div>
+        <div class="stage" id="summary2"></div>
+      </div>
+      <div class="row tight">
+        <button class="btn ghost" id="all">Keep all</button>
+        <button class="btn ghost" id="none">Keep none</button>
+      </div>
+    </div>
+
+    <div class="pages" id="pages"></div>
+
+    <div style="margin-top:18px">
+      <label class="field" for="title">Name these notes</label>
+      <input type="text" id="title" placeholder="e.g. Biology Chapter 6 — Life Processes">
+      <div class="hint" id="filename">will be saved as notes.pdf</div>
+    </div>
+
+    <button class="btn big" id="download" style="margin-top:16px">Download the PDF</button>
+    <div class="hint" id="privacy">Everything ran on this device. Nothing was uploaded anywhere.</div>
+  </section>
+
+  <div class="err" id="err" style="display:none"></div>
+
+  <p class="foot">
+    <span class="pill">no cloud</span> <span class="pill">no account</span> <span class="pill">no database</span><br>
+    Screenshots are taken when the page changes and finished — never mid-stroke, never mid-fade.
+  </p>
+</div>
+
+<div class="lightbox" id="lightbox"><span class="close">×</span><img id="lightbox-img" alt=""></div>
+
+<script>
+const $ = id => document.getElementById(id);
+let jobId = null, poll = null, state = null;
+
+function show(step){
+  $('step-input').style.display    = step === 'input'    ? '' : 'none';
+  $('step-progress').style.display = step === 'progress' ? '' : 'none';
+  $('step-result').style.display   = step === 'result'   ? '' : 'none';
+}
+function fail(msg){ $('err').style.display = 'block'; $('err').textContent = msg; }
+function clearErr(){ $('err').style.display = 'none'; }
+
+function form(extra){
+  const f = new FormData();
+  f.append('sensitivity', $('sens').value);
+  f.append('image_format', $('fmt').value);
+  f.append('quality', '92');
+  f.append('title', '');
+  f.append('max_width', '2200');
+  for (const [k, v] of Object.entries(extra || {})) f.append(k, v);
+  return f;
+}
+
+async function start(response){
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(data.detail || 'could not start');
+  jobId = data.id;
+  show('progress');
+  poll = setInterval(check, 700);
+  check();
+}
+
+async function check(){
+  if (!jobId) return;
+  let r;
+  try { r = await fetch(`/api/jobs/${jobId}`); } catch(e){ return; }
+  if (!r.ok) return;
+  state = await r.json();
+  $('stage').innerHTML = '<b>' + state.stage + '…</b>';
+  $('barfill').style.width = Math.round((state.fraction || 0) * 100) + '%';
+  $('stage2').textContent = state.status === 'ready'
+      ? `${state.pages.length} page(s) found in ${state.duration}s of video`
+      : `analysing ${state.duration ? state.duration + 's of video' : 'the video'}…`;
+
+  if (state.status === 'failed'){ clearInterval(poll); show('input'); fail(state.error); }
+  if (state.status === 'ready'){ clearInterval(poll); render(); show('result'); }
+}
+
+async function render(){
+  const grid = $('pages');
+  grid.innerHTML = '';
+  let index = 0;
+  for (const p of state.pages){
+    const i = index++;
+    const el = document.createElement('div');
+    el.className = 'page' + (p.keep ? '' : ' off');
+    el.innerHTML = `
+      <span class="tick ${p.keep ? 'on' : ''}" data-i="${i}">${p.keep ? '✓' : ''}</span>
+      <img src="${p.thumbnail}" alt="page ${i+1}" data-i="${i}">
+      <div class="meta"><span class="tag">#${i+1}</span><span>${p.time.toFixed(1)}s</span></div>`;
+    grid.appendChild(el);
+  }
+  grid.querySelectorAll('.tick').forEach(t => t.onclick = () => toggle(+t.dataset.i));
+  grid.querySelectorAll('img').forEach(img => img.onclick = () => {
+    $('lightbox-img').src = img.src; $('lightbox').classList.add('on');
+  });
+  const kept = state.pages.filter(p => p.keep).length;
+  $('summary').innerHTML = `<b>${state.pages.length} page(s) found</b>`;
+  $('summary2').textContent = `${kept} selected · ${state.duration}s of video analysed in ${state.analyzed_seconds}s`;
+  $('title').value = state.title || $('title').value;
+  updateName();
+}
+
+function updateName(){
+  const raw = $('title').value.trim();
+  const safe = (raw || 'notes').replace(/[^\w \-_().\[\]]+/g, '').trim() || 'notes';
+  $('filename').textContent = 'will be saved as ' + (/\.pdf$/i.test(safe) ? safe : safe + '.pdf');
+}
+
+async function toggle(i){
+  const keep = state.pages.map(p => p.keep);
+  keep[i] = !keep[i];
+  const r = await fetch(`/api/jobs/${jobId}/selection`, {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({keep})
+  });
+  state = await r.json();
+  render();
+}
+
+async function setAll(value){
+  const keep = state.pages.map(() => value);
+  const r = await fetch(`/api/jobs/${jobId}/selection`, {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({keep})
+  });
+  state = await r.json();
+  render();
+}
+
+// --- wiring ---------------------------------------------------------------- //
+$('drop').onclick = () => $('file').click();
+$('file').onchange = async e => {
+  clearErr();
+  const f = e.target.files[0];
+  if (!f) return;
+  const fd = form({}); fd.append('video', f);
+  try { await start(await fetch('/api/upload', {method:'POST', body: fd})); }
+  catch(err){ fail(err.message); }
+};
+['dragenter','dragover'].forEach(ev => $('drop').addEventListener(ev, e => {
+  e.preventDefault(); $('drop').classList.add('hot');
+}));
+['dragleave','drop'].forEach(ev => $('drop').addEventListener(ev, e => {
+  e.preventDefault(); $('drop').classList.remove('hot');
+}));
+$('drop').addEventListener('drop', async e => {
+  const f = e.dataTransfer.files[0];
+  if (!f) return;
+  const fd = form({}); fd.append('video', f);
+  try { await start(await fetch('/api/upload', {method:'POST', body: fd})); }
+  catch(err){ fail(err.message); }
+});
+
+$('fetch').onclick = async () => {
+  clearErr();
+  const url = $('link').value.trim();
+  if (!url) return fail('paste a link first');
+  try { await start(await fetch('/api/fetch', {method:'POST', body: form({url})})); }
+  catch(err){ fail(err.message + ' — Instagram/Facebook/YouTube often require a login cookie. In the phone app you sign in once inside the app and it keeps working offline afterwards.'); }
+};
+
+$('all').onclick = () => setAll(true);
+$('none').onclick = () => setAll(false);
+$('title').oninput = updateName;
+$('download').onclick = () => {
+  const title = encodeURIComponent($('title').value.trim());
+  window.location = `/api/jobs/${jobId}/pdf?title=${title}`;
+};
+$('lightbox').onclick = e => { if (e.target.id !== 'lightbox-img') $('lightbox').classList.remove('on'); };
+document.addEventListener('keydown', e => { if (e.key === 'Escape') $('lightbox').classList.remove('on'); });
+show('input');
+</script>
+</body>
+</html>

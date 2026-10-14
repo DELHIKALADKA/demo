@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- The real theming happens in Compose (see PageSnapTheme in MainActivity);
+         this is just the splash/window background so the app does not flash white. -->
+    <style name="Theme.PageSnap" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">#0F1115</item>
+        <item name="android:statusBarColor">#0F1115</item>
+    </style>
+</resources>

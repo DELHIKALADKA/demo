@@ -1,0 +1,13 @@
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Generated test media: rebuild with `python tests/make_fixtures.py` (~45s)
+engine/tests/fixtures/
+engine/tests/debug_*.png
+
+# Local output
+*.pdf
+!docs/**/*.pdf
+prototype/static/*.local.*
