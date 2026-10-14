@@ -1,0 +1,1845 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0d1220" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#f5f6fb" media="(prefers-color-scheme: light)">
+<meta name="color-scheme" content="dark light">
+<title>PageSnap — turn videos into PDFs</title>
+<style>
+  /* ══ design tokens ─────────────────────────────────────────────────────────
+     Dark is the default appearance. Every colour lives here, so the whole app
+     changes theme together and nothing is styled by guessing. Contrast was
+     checked in both themes: body text is ≥ 12:1 on dark, ≥ 15:1 on light, and
+     white on the primary gradient stays ≥ 4.5:1 across the whole gradient. */
+  :root{
+    --bg:#0d1220;              /* deep navy, not pure black */
+    --bg-glow-1:#1b1f4a; --bg-glow-2:#0d2b3a;
+    --surface:#161d33;
+    --surface-2:#1d2540;
+    --surface-3:#242d4d;
+    --line:#2b3557;
+    --line-soft:#232c49;
+    --ink:#eef1fa;
+    --ink-dim:#a6b0cc;
+    --ink-faint:#7b86a6;
+
+    --lav:#a78bfa;
+    --blue:#6ea8f7;
+    --cyan:#4dd4e0;
+
+    --primary:linear-gradient(135deg,#5b46d8 0%,#2f6fd0 55%,#1f7fa8 100%);
+    --primary-ink:#ffffff;
+    --primary-shadow:0 10px 26px rgba(59,86,214,.34);
+
+    --good:#42d392;
+    --warn:#f3b83c;
+    --danger:#ff7a7a;
+    --good-bg:rgba(66,211,146,.12);
+    --warn-bg:rgba(243,184,60,.13);
+    --danger-bg:rgba(255,122,122,.12);
+    --danger-line:rgba(255,122,122,.35);
+
+    --radius-lg:22px; --radius:16px; --radius-sm:11px; --radius-xs:8px;
+    --shadow:0 14px 34px rgba(3,7,20,.46);
+    --shadow-sm:0 4px 14px rgba(3,7,20,.3);
+    --tap:46px;                     /* comfortable touch target */
+    --pad:16px;
+    --tabbar-h:64px;
+    --font:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+  }
+  html[data-theme="light"]{
+    --bg:#f4f6fc;
+    --bg-glow-1:#e5e9ff; --bg-glow-2:#e2f4fa;
+    --surface:#ffffff;
+    --surface-2:#f6f7fc;
+    --surface-3:#eef0f9;
+    --line:#dfe3f0;
+    --line-soft:#e8ebf5;
+    --ink:#131a2b;
+    --ink-dim:#545e7c;
+    --ink-faint:#7a849d;
+    --lav:#7c5cf0;
+    --blue:#2f6fd0;
+    --cyan:#1f8fa8;
+    --primary:linear-gradient(135deg,#5b46d8 0%,#2f6fd0 55%,#1f7fa8 100%);
+    --primary-shadow:0 8px 20px rgba(47,111,208,.26);
+    --good:#12885c;
+    --warn:#9a6800;
+    --danger:#c0392b;
+    --good-bg:rgba(18,136,92,.09);
+    --warn-bg:rgba(154,104,0,.1);
+    --danger-bg:rgba(192,57,43,.08);
+    --danger-line:rgba(192,57,43,.25);
+    --shadow:0 10px 28px rgba(23,32,64,.1);
+    --shadow-sm:0 3px 10px rgba(23,32,64,.07);
+  }
+
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{
+    margin:0; background:var(--bg); color:var(--ink);
+    font:16px/1.55 var(--font);
+    -webkit-font-smoothing:antialiased; -webkit-text-size-adjust:100%;
+    overflow-x:hidden;                       /* nothing may scroll sideways */
+    background-image:
+      radial-gradient(900px 500px at 8% -10%, var(--bg-glow-1) 0%, transparent 62%),
+      radial-gradient(760px 460px at 100% 0%, var(--bg-glow-2) 0%, transparent 58%);
+    background-attachment:fixed;
+    padding-bottom:calc(var(--tabbar-h) + env(safe-area-inset-bottom) + 18px);
+  }
+  h1,h2,h3{margin:0;letter-spacing:-.3px;line-height:1.25}
+  h1{font-size:20px} h2{font-size:23px} h3{font-size:16.5px}
+  p{margin:0}
+  a{color:var(--blue)}
+  img{max-width:100%}
+  .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+
+  /* ══ layout ══════════════════════════════════════════════════════════════ */
+  .app{max-width:680px;margin:0 auto;padding:0 var(--pad)}
+  .topbar{
+    position:sticky;top:0;z-index:20;
+    display:flex;align-items:center;gap:10px;
+    padding:calc(env(safe-area-inset-top) + 10px) 0 10px;
+    background:linear-gradient(var(--bg) 62%,transparent);
+    backdrop-filter:blur(6px);
+  }
+  .brand{display:flex;align-items:center;gap:10px;background:none;border:0;padding:4px 2px;
+         cursor:pointer;color:inherit;font-family:inherit;border-radius:12px}
+  .brand b{font-size:18.5px;font-weight:700;letter-spacing:-.4px}
+  .brand svg{display:block}
+  .spacer{margin-left:auto}
+  .screen{display:block;padding-bottom:8px}
+  .stack{display:flex;flex-direction:column;gap:14px}
+  .sub{color:var(--ink-dim);font-size:14.5px}
+
+  /* ══ cards ═══════════════════════════════════════════════════════════════ */
+  .card{
+    background:var(--surface); border:1px solid var(--line-soft);
+    border-radius:var(--radius); padding:16px; box-shadow:var(--shadow-sm);
+  }
+  .card-head{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+  .card-head h3{flex:1}
+  .hero{
+    border-radius:var(--radius-lg); padding:20px 18px;
+    background:
+      radial-gradient(520px 220px at 100% 0%, rgba(122,108,245,.22), transparent 62%),
+      radial-gradient(420px 200px at 0% 100%, rgba(77,212,224,.16), transparent 60%),
+      var(--surface);
+    border:1px solid var(--line);
+  }
+  .hero h3{font-size:22px}
+  .hero p{margin:8px 0 16px;color:var(--ink-dim);font-size:14.5px}
+  .hero-actions{display:flex;flex-direction:column;gap:9px}
+
+  /* ══ buttons ════════════════════════════════════════════════════════════ */
+  .btn{
+    appearance:none;font-family:inherit;font-size:15.5px;font-weight:650;
+    min-height:var(--tap);padding:12px 18px;border-radius:var(--radius-sm);
+    border:1px solid transparent;background:var(--surface-3);color:var(--ink);
+    cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:9px;
+    transition:transform .12s ease, background .15s ease, box-shadow .15s ease, opacity .15s;
+    touch-action:manipulation;
+  }
+  .btn:hover{background:var(--line)}
+  .btn:active{transform:scale(.975)}
+  .btn:disabled{opacity:.5;cursor:not-allowed;transform:none}
+  .btn.primary{background:var(--primary);color:var(--primary-ink);box-shadow:var(--primary-shadow)}
+  .btn.primary:hover{filter:brightness(1.06)}
+  .btn.ghost{background:var(--surface-2);border-color:var(--line);color:var(--ink)}
+  .btn.ghost:hover{background:var(--surface-3)}
+  .btn.quiet{background:transparent;border-color:var(--line);color:var(--ink-dim)}
+  .btn.quiet:hover{color:var(--ink);background:var(--surface-2)}
+  .btn.danger{background:var(--danger-bg);border-color:var(--danger-line);color:var(--danger)}
+  .btn.big{width:100%;font-size:16.5px;min-height:52px}
+  .btn.mini{min-height:38px;padding:7px 11px;font-size:13.5px;border-radius:var(--radius-xs);font-weight:600}
+  .btn svg{width:18px;height:18px;flex:none}
+  .icon-btn{
+    width:var(--tap);height:var(--tap);min-height:var(--tap);padding:0;border-radius:14px;
+    background:var(--surface-2);border:1px solid var(--line);color:var(--ink-dim);
+    display:inline-flex;align-items:center;justify-content:center;cursor:pointer;
+  }
+  .icon-btn:hover{color:var(--ink);background:var(--surface-3)}
+  .icon-btn svg{width:20px;height:20px}
+  .link-btn{background:none;border:0;color:var(--blue);font:inherit;font-size:14px;
+            font-weight:600;cursor:pointer;padding:8px;border-radius:8px;min-height:38px}
+  .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+  .row.tight{gap:8px}
+  :focus-visible{outline:2.5px solid var(--lav);outline-offset:2px;border-radius:10px}
+
+  /* ══ fields ═════════════════════════════════════════════════════════════ */
+  label.field{display:block;font-size:12.5px;color:var(--ink-dim);margin:0 0 7px;
+              text-transform:uppercase;letter-spacing:.7px;font-weight:650}
+  input[type=text],input[type=number],select{
+    width:100%;background:var(--surface-2);border:1px solid var(--line);color:var(--ink);
+    border-radius:var(--radius-sm);padding:13px 14px;font-size:16px;font-family:inherit;
+    min-height:var(--tap);
+  }
+  input::placeholder{color:var(--ink-faint)}
+  input[type=text]:focus,input[type=number]:focus,select:focus{
+    outline:none;border-color:var(--lav);box-shadow:0 0 0 3px rgba(167,139,250,.22)}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  .hint{color:var(--ink-dim);font-size:13px;margin-top:8px;overflow-wrap:anywhere}
+  .kv{display:flex;gap:8px 18px;flex-wrap:wrap;font-size:13.5px;color:var(--ink-dim)}
+  .kv b{color:var(--ink);font-weight:650}
+  .pill{display:inline-flex;align-items:center;gap:6px;background:var(--surface-2);
+        border:1px solid var(--line);border-radius:99px;padding:5px 11px;font-size:12.5px;
+        color:var(--ink-dim)}
+  .pill svg{width:14px;height:14px}
+
+  /* ══ import ═════════════════════════════════════════════════════════════ */
+  .drop{
+    border:1.6px dashed var(--line);border-radius:var(--radius);padding:26px 16px;
+    text-align:center;background:var(--surface-2);transition:.15s;cursor:pointer;
+    display:flex;flex-direction:column;align-items:center;gap:8px;
+  }
+  .drop:hover{border-color:var(--lav);background:var(--surface-3)}
+  .drop.hot{border-color:var(--cyan);background:var(--surface-3);border-style:solid}
+  .drop svg{width:34px;height:34px;color:var(--blue)}
+  .drop b{font-size:16px}
+  .drop span{color:var(--ink-dim);font-size:13px;max-width:34ch}
+  .or{display:flex;align-items:center;gap:10px;color:var(--ink-faint);font-size:12.5px;margin:16px 0 10px}
+  .or::before,.or::after{content:"";height:1px;background:var(--line);flex:1}
+  .url-state{font-size:13.5px;margin-top:9px;min-height:20px;color:var(--ink-dim)}
+  .url-state.bad{color:var(--danger)}
+  .url-state.good{color:var(--good)}
+  .url-state.busy{color:var(--ink-dim)}
+  .src-list{font-size:13.5px;color:var(--ink-dim);margin:8px 0 0;padding-left:20px}
+  .src-list li{margin:5px 0}
+  details summary{cursor:pointer;color:var(--ink-dim);font-size:14px;padding:6px 0;
+                  list-style:none;display:flex;align-items:center;gap:8px;min-height:38px}
+  details summary::-webkit-details-marker{display:none}
+  details summary::after{content:"▾";margin-left:auto;font-size:12px;opacity:.7}
+  details[open] summary::after{content:"▴"}
+
+  /* ══ import option tiles (home) ═════════════════════════════════════════ */
+  .tiles{display:grid;grid-template-columns:1fr;gap:10px}
+  .tile{
+    display:flex;align-items:center;gap:13px;text-align:left;width:100%;
+    background:var(--surface-2);border:1px solid var(--line);border-radius:var(--radius);
+    padding:14px;cursor:pointer;font:inherit;color:inherit;
+    transition:transform .12s ease,border-color .15s ease,background .15s ease;
+  }
+  .tile:hover{border-color:var(--lav);background:var(--surface-3)}
+  .tile:active{transform:scale(.985)}
+  .tile .ico{
+    width:42px;height:42px;flex:none;border-radius:13px;display:grid;place-items:center;
+    background:linear-gradient(135deg,rgba(122,108,245,.22),rgba(77,212,224,.18));
+    border:1px solid var(--line);color:var(--lav);
+  }
+  .tile .ico svg{width:21px;height:21px}
+  .tile b{display:block;font-size:15.5px}
+  .tile span{display:block;color:var(--ink-dim);font-size:13px;margin-top:2px}
+  .tile .chev{margin-left:auto;color:var(--ink-faint)}
+
+  /* ══ steps / guidance ═══════════════════════════════════════════════════ */
+  .steps{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:12px}
+  .steps li{display:flex;gap:12px;align-items:flex-start}
+  .steps .n{
+    width:26px;height:26px;flex:none;border-radius:9px;display:grid;place-items:center;
+    background:var(--surface-3);border:1px solid var(--line);font-size:13px;font-weight:700;
+    color:var(--lav)
+  }
+  .steps b{display:block;font-size:14.5px}
+  .steps span{color:var(--ink-dim);font-size:13.5px}
+
+  /* ══ progress ═══════════════════════════════════════════════════════════ */
+  .bar{height:8px;background:var(--surface-3);border-radius:99px;overflow:hidden;margin:14px 0 10px}
+  .bar>i{display:block;height:100%;width:0;background:var(--primary);
+         transition:width .35s ease;border-radius:99px}
+  .bar.indet>i{width:34% !important;animation:slide 1.25s ease-in-out infinite}
+  @keyframes slide{0%{margin-left:-34%}100%{margin-left:100%}}
+  .stage{font-size:14.5px;color:var(--ink-dim);overflow-wrap:anywhere}
+  .stage b{color:var(--ink)}
+  .spinner{
+    width:44px;height:44px;border-radius:50%;border:3.5px solid var(--surface-3);
+    border-top-color:var(--lav);animation:sp .9s linear infinite;margin:4px auto 14px;display:block;
+  }
+  @keyframes sp{to{transform:rotate(360deg)}}
+  .spin{display:inline-block;width:13px;height:13px;border:2px solid rgba(255,255,255,.3);
+        border-top-color:currentColor;border-radius:50%;animation:sp .8s linear infinite;
+        vertical-align:-2px;margin-right:7px}
+  .proc-stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;margin-top:14px}
+  .stat{background:var(--surface-2);border:1px solid var(--line);border-radius:var(--radius-sm);padding:11px 13px}
+  .stat span{display:block;font-size:12px;color:var(--ink-faint);text-transform:uppercase;letter-spacing:.6px}
+  .stat b{display:block;font-size:17px;margin-top:3px;overflow-wrap:anywhere}
+
+  /* ══ review grid ════════════════════════════════════════════════════════ */
+  .pages{display:grid;grid-template-columns:repeat(auto-fill,minmax(132px,1fr));gap:10px;margin-top:12px}
+  .page{
+    background:var(--surface-2);border:1px solid var(--line);border-radius:var(--radius-sm);
+    overflow:hidden;position:relative;transition:border-color .15s ease,box-shadow .15s ease,opacity .15s
+  }
+  .page:has(.tick.on){border-color:rgba(122,108,245,.6)}
+  .page img{display:block;width:100%;aspect-ratio:16/10;object-fit:cover;background:var(--surface-3);cursor:zoom-in}
+  .page.off{opacity:.5}
+  .page.off img{filter:grayscale(.8)}
+  .tick{
+    position:absolute;top:7px;left:7px;width:32px;height:32px;border-radius:10px;
+    background:rgba(9,12,22,.72);border:1.5px solid rgba(255,255,255,.5);color:#fff;
+    display:grid;place-items:center;cursor:pointer;font-size:15px;z-index:2;padding:0;
+    backdrop-filter:blur(3px);font-family:inherit
+  }
+  .tick.on{background:var(--good);border-color:var(--good);color:#04231a}
+  .pos{position:absolute;top:7px;right:7px;background:rgba(9,12,22,.72);border:1px solid rgba(255,255,255,.35);
+       color:#fff;border-radius:9px;padding:4px 8px;font-size:12px;font-weight:650;z-index:2}
+  .page .meta{display:flex;justify-content:space-between;align-items:center;padding:7px 9px;
+              font-size:12px;color:var(--ink-dim);gap:6px}
+  .page .tag{background:var(--surface-3);border-radius:7px;padding:3px 7px;white-space:nowrap}
+  .page .tag.manual{background:var(--warn-bg);color:var(--warn)}
+  .page .actions{display:flex;gap:5px;padding:0 8px 8px}
+  .page .actions .btn{flex:1;min-width:0;min-height:40px;padding:6px}
+  .page .actions .btn svg{width:16px;height:16px}
+
+  /* action bar pinned above the tab bar, so it never covers the grid */
+  .actionbar{
+    position:sticky;bottom:calc(var(--tabbar-h) + env(safe-area-inset-bottom) + 8px);
+    z-index:15;margin:14px 0 2px;padding:10px;border-radius:var(--radius);
+    background:color-mix(in srgb, var(--surface) 92%, transparent);
+    border:1px solid var(--line);box-shadow:var(--shadow);
+    display:flex;gap:10px;align-items:center;backdrop-filter:blur(10px);
+  }
+  .actionbar .count{font-size:13.5px;color:var(--ink-dim);flex:1;min-width:0}
+  .actionbar .count b{display:block;color:var(--ink);font-size:15px}
+
+  /* ══ messages ═══════════════════════════════════════════════════════════ */
+  .err,.banner,.ok{border-radius:var(--radius-sm);padding:13px 15px;font-size:14.5px;overflow-wrap:anywhere}
+  .err{background:var(--danger-bg);border:1px solid var(--danger-line);color:var(--danger)}
+  .err b{color:var(--ink)}
+  .ok{background:var(--good-bg);border:1px solid rgba(66,211,146,.32);color:var(--good)}
+  .banner{background:var(--warn-bg);border:1px solid rgba(243,184,60,.34);color:var(--warn);
+          display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:12px}
+  .banner b{color:var(--ink)}
+  #err{position:fixed;left:0;right:0;bottom:calc(var(--tabbar-h) + env(safe-area-inset-bottom) + 10px);
+       margin:0 var(--pad);z-index:40;box-shadow:var(--shadow);max-width:640px}
+  @media(min-width:700px){#err{left:50%;transform:translateX(-50%);width:600px}}
+  .toast{
+    position:fixed;left:50%;transform:translateX(-50%);
+    bottom:calc(var(--tabbar-h) + env(safe-area-inset-bottom) + 72px);
+    z-index:45;background:var(--surface-3);border:1px solid var(--line);color:var(--ink);
+    border-radius:99px;padding:10px 18px;font-size:14px;box-shadow:var(--shadow);
+    opacity:0;pointer-events:none;transition:opacity .2s ease
+  }
+  .toast.on{opacity:1}
+
+  /* ══ library ════════════════════════════════════════════════════════════ */
+  .lib-item{display:flex;gap:13px;align-items:center;padding:13px;border-radius:var(--radius);
+            background:var(--surface);border:1px solid var(--line-soft);box-shadow:var(--shadow-sm)}
+  .lib-item .thumb{width:52px;height:66px;flex:none;border-radius:9px;overflow:hidden;
+                   background:var(--surface-3);border:1px solid var(--line);display:grid;place-items:center}
+  .lib-item .thumb svg{width:24px;height:24px;color:var(--lav)}
+  .lib-body{flex:1;min-width:0}
+  .lib-body b{display:block;font-size:15px;overflow-wrap:anywhere}
+  .lib-body .kv{margin-top:4px;font-size:12.5px}
+  .lib-actions{display:flex;gap:6px;flex-wrap:wrap;margin-top:9px}
+  .empty{
+    text-align:center;padding:34px 18px;border:1.5px dashed var(--line);border-radius:var(--radius);
+    background:var(--surface-2)
+  }
+  .empty svg{width:38px;height:38px;color:var(--ink-faint);margin-bottom:10px}
+  .empty b{display:block;font-size:16px;margin-bottom:5px}
+  .empty p{color:var(--ink-dim);font-size:14px;margin-bottom:14px}
+
+  /* ══ rows / settings ════════════════════════════════════════════════════ */
+  .setting{display:flex;gap:13px;align-items:center;padding:13px 0;border-bottom:1px solid var(--line-soft)}
+  .setting:last-child{border-bottom:0}
+  .setting .txt{flex:1;min-width:0}
+  .setting b{display:block;font-size:15px}
+  .setting span{color:var(--ink-dim);font-size:13px}
+  .seg{display:inline-flex;background:var(--surface-2);border:1px solid var(--line);
+       border-radius:12px;padding:3px;gap:3px}
+  .seg button{
+    appearance:none;border:0;background:transparent;color:var(--ink-dim);font:inherit;
+    font-size:13.5px;font-weight:600;padding:9px 13px;border-radius:9px;cursor:pointer;min-height:40px
+  }
+  .seg button[aria-pressed="true"]{background:var(--surface-3);color:var(--ink);box-shadow:var(--shadow-sm)}
+
+  /* ══ bottom navigation ══════════════════════════════════════════════════ */
+  .tabbar{
+    position:fixed;left:0;right:0;bottom:0;z-index:30;
+    display:flex;justify-content:space-around;align-items:stretch;
+    height:calc(var(--tabbar-h) + env(safe-area-inset-bottom));
+    padding-bottom:env(safe-area-inset-bottom);
+    background:color-mix(in srgb, var(--surface) 94%, transparent);
+    border-top:1px solid var(--line);backdrop-filter:blur(14px);
+  }
+  .tabbar button{
+    appearance:none;border:0;background:none;font:inherit;cursor:pointer;
+    flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;
+    color:var(--ink-faint);font-size:11.5px;font-weight:600;padding:6px 2px;min-height:var(--tabbar-h);
+    transition:color .15s ease
+  }
+  .tabbar button svg{width:23px;height:23px}
+  .tabbar button.on{color:var(--lav)}
+  .tabbar button.on .dot{opacity:1;transform:scale(1)}
+  .tabbar .dot{width:5px;height:5px;border-radius:50%;background:var(--lav);opacity:0;
+               transform:scale(.5);transition:.18s ease}
+
+  /* ══ lightbox ═══════════════════════════════════════════════════════════ */
+  .lightbox{position:fixed;inset:0;background:rgba(5,7,14,.94);display:none;place-items:center;
+            padding:calc(env(safe-area-inset-top) + 14px) 14px calc(env(safe-area-inset-bottom) + 14px);z-index:60}
+  .lightbox.on{display:grid}
+  html[data-theme="light"] .lightbox{background:rgba(20,26,45,.9)}
+  .lightbox img{max-width:100%;max-height:84vh;border-radius:var(--radius-sm);box-shadow:var(--shadow)}
+  .lightbox iframe{width:min(920px,100%);height:84vh;border:0;border-radius:var(--radius-sm);background:#fff}
+  .lightbox .close{
+    position:absolute;top:calc(env(safe-area-inset-top) + 10px);right:14px;
+    width:44px;height:44px;border-radius:50%;background:rgba(255,255,255,.14);color:#fff;
+    border:0;font-size:24px;line-height:1;cursor:pointer;display:grid;place-items:center
+  }
+  .lightbox .close:hover{background:rgba(255,255,255,.24)}
+
+  /* ══ wider screens ══════════════════════════════════════════════════════ */
+  @media(min-width:560px){
+    .hero-actions{flex-direction:row;flex-wrap:wrap}
+    .hero-actions .btn{flex:1;min-width:180px}
+    .tiles{grid-template-columns:1fr 1fr}
+    .pages{grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:12px}
+  }
+  @media(min-width:900px){
+    :root{--pad:24px}
+    .app{
+      max-width:1040px;display:grid;grid-template-columns:216px minmax(0,1fr);
+      grid-template-areas:"top top" "nav main";gap:0 26px;align-items:start
+    }
+    .topbar{grid-area:top}
+    .screen{grid-area:main;max-width:720px}
+    .tabbar{
+      grid-area:nav;position:sticky;top:78px;height:auto;left:auto;right:auto;bottom:auto;
+      flex-direction:column;justify-content:flex-start;gap:4px;padding:10px;
+      border:1px solid var(--line);border-radius:var(--radius-lg);background:var(--surface);
+      box-shadow:var(--shadow-sm);backdrop-filter:none
+    }
+    .tabbar button{flex-direction:row;justify-content:flex-start;gap:11px;font-size:14.5px;
+                   padding:11px 13px;min-height:46px;border-radius:var(--radius-sm);width:100%}
+    .tabbar .dot{display:none}
+    .tabbar button.on{background:var(--surface-3)}
+    body{padding-bottom:40px}
+    #err{bottom:24px}
+  }
+
+  /* ══ motion preferences ═════════════════════════════════════════════════ */
+  @media(prefers-reduced-motion:reduce){
+    *,*::before,*::after{animation-duration:.001ms !important;animation-iteration-count:1 !important;
+                         transition-duration:.001ms !important;scroll-behavior:auto !important}
+    .bar.indet>i{margin-left:0;width:100% !important}
+  }
+</style>
+<script>
+/* Apply the saved appearance before the first paint, so switching themes never
+   flashes the other one. Dark is the default; "system" follows the operating system. */
+try{
+  var choice = localStorage.getItem('pagesnap-theme') || 'dark';
+  var resolved = choice === 'system'
+    ? (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches
+        ? 'light' : 'dark')
+    : choice;
+  document.documentElement.dataset.theme = resolved;
+}catch(e){}
+</script>
+</head>
+<body>
+<!-- icons and the logo: one definition, reused everywhere (no icon fonts, no requests) -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+  <defs>
+    <linearGradient id="psg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#7c6cf5"/><stop offset=".55" stop-color="#4aa8f0"/>
+      <stop offset="1" stop-color="#39cfd9"/>
+    </linearGradient>
+    <!-- the PageSnap mark: a page, a folded corner, and the moment it was snapped -->
+    <symbol id="i-logo" viewBox="0 0 32 32">
+      <rect width="32" height="32" rx="9.5" fill="url(#psg)"/>
+      <path d="M10.5 6.8h6.1l4.9 4.9v13.5a1 1 0 0 1-1 1h-10a1 1 0 0 1-1-1V7.8a1 1 0 0 1 1-1Z"
+            fill="#ffffff" opacity=".97"/>
+      <path d="M16.6 6.8l4.9 4.9h-4.9z" fill="#cdd7ff"/>
+      <path d="M13.4 14.1h4" stroke="#6d5ce7" stroke-width="1.7" stroke-linecap="round" opacity=".6"/>
+      <path d="M13.4 17.4h7.1" stroke="#6d5ce7" stroke-width="1.7" stroke-linecap="round" opacity=".6"/>
+      <circle cx="20.6" cy="21.4" r="3.1" fill="url(#psg)"/>
+      <path d="M19.4 21.4l.9 1 1.6-2" stroke="#fff" stroke-width="1.4" stroke-linecap="round"
+            stroke-linejoin="round" fill="none"/>
+    </symbol>
+    <symbol id="i-home" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"
+            stroke-linecap="round" stroke-linejoin="round">
+      <path d="M4 10.6 12 4l8 6.6V19a1.4 1.4 0 0 1-1.4 1.4H5.4A1.4 1.4 0 0 1 4 19z"/>
+      <path d="M9.6 20.4v-6.2h4.8v6.2"/>
+    </symbol>
+    <symbol id="i-create" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"
+            stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="12" cy="12" r="8.2"/><path d="M12 8.4v7.2M8.4 12h7.2"/>
+    </symbol>
+    <symbol id="i-library" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"
+            stroke-linecap="round" stroke-linejoin="round">
+      <path d="M7.4 3.6h6.1l3.9 3.9v9.1H7.4z"/><path d="M5 6.2v12.6a1.6 1.6 0 0 0 1.6 1.6h8.4"/>
+      <path d="M10.3 11h3.3M10.3 14h3.3"/>
+    </symbol>
+    <symbol id="i-settings" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"
+            stroke-linecap="round" stroke-linejoin="round">
+      <path d="M4 7.5h9M17.5 7.5H20M4 16.5h2.5M11 16.5h9"/>
+      <circle cx="15.2" cy="7.5" r="2.3"/><circle cx="8.6" cy="16.5" r="2.3"/>
+    </symbol>
+    <symbol id="i-upload" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"
+            stroke-linecap="round" stroke-linejoin="round">
+      <path d="M12 16.5V5.4M7.6 9.6 12 5.2l4.4 4.4"/><path d="M4.5 15.4v2.9a1.7 1.7 0 0 0 1.7 1.7h11.6a1.7 1.7 0 0 0 1.7-1.7v-2.9"/>
+    </symbol>
+    <symbol id="i-link" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"
+            stroke-linecap="round" stroke-linejoin="round">
+      <path d="M10.4 13.6a3.4 3.4 0 0 0 4.8 0l2.6-2.6a3.4 3.4 0 0 0-4.8-4.8l-1 1"/>
+      <path d="M13.6 10.4a3.4 3.4 0 0 0-4.8 0l-2.6 2.6a3.4 3.4 0 0 0 4.8 4.8l1-1"/>
+    </symbol>
+    <symbol id="i-download" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"
+            stroke-linecap="round" stroke-linejoin="round">
+      <path d="M12 4.5v11.1M7.6 11.2 12 15.6l4.4-4.4"/><path d="M4.5 15.6v2.7a1.7 1.7 0 0 0 1.7 1.7h11.6a1.7 1.7 0 0 0 1.7-1.7v-2.7"/>
+    </symbol>
+    <symbol id="i-pdf" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"
+            stroke-linecap="round" stroke-linejoin="round">
+      <path d="M6.5 3.5h7.1l3.9 3.9v13.1h-11z"/><path d="M13.6 3.5v3.9h3.9"/>
+      <path d="M9.4 12.5h5.2M9.4 15.5h5.2"/>
+    </symbol>
+    <symbol id="i-eye" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"
+            stroke-linecap="round" stroke-linejoin="round">
+      <path d="M2.8 12S6.4 5.9 12 5.9 21.2 12 21.2 12s-3.6 6.1-9.2 6.1S2.8 12 2.8 12Z"/>
+      <circle cx="12" cy="12" r="2.9"/>
+    </symbol>
+    <symbol id="i-camera" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"
+            stroke-linecap="round" stroke-linejoin="round">
+      <path d="M4 8.6h3l1.4-2h7.2l1.4 2h3v10.3H4z"/><circle cx="12" cy="13.4" r="3.1"/>
+    </symbol>
+    <symbol id="i-trash" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"
+            stroke-linecap="round" stroke-linejoin="round">
+      <path d="M5 7.4h14M10 7.4V5.6h4v1.8M7 7.4l.9 11.4a1.6 1.6 0 0 0 1.6 1.5h5a1.6 1.6 0 0 0 1.6-1.5L17 7.4"/>
+    </symbol>
+    <symbol id="i-left" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1"
+            stroke-linecap="round" stroke-linejoin="round"><path d="M14.4 5.6 8 12l6.4 6.4"/></symbol>
+    <symbol id="i-right" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1"
+            stroke-linecap="round" stroke-linejoin="round"><path d="M9.6 5.6 16 12l-6.4 6.4"/></symbol>
+    <symbol id="i-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"
+            stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="12" cy="12" r="4"/><path d="M12 2.6v2.2M12 19.2v2.2M4.3 4.3l1.6 1.6M18.1 18.1l1.6 1.6M2.6 12h2.2M19.2 12h2.2M4.3 19.7l1.6-1.6M18.1 5.9l1.6-1.6"/>
+    </symbol>
+    <symbol id="i-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"
+            stroke-linecap="round" stroke-linejoin="round">
+      <path d="M20 14.4A8.4 8.4 0 0 1 9.6 4a8.4 8.4 0 1 0 10.4 10.4Z"/>
+    </symbol>
+    <symbol id="i-sparkle" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"
+            stroke-linecap="round" stroke-linejoin="round">
+      <path d="M12 3.5l1.7 4.6 4.6 1.7-4.6 1.7L12 16.1l-1.7-4.6-4.6-1.7 4.6-1.7z"/>
+      <path d="M18.6 16.4l.7 1.9 1.9.7-1.9.7-.7 1.9-.7-1.9-1.9-.7 1.9-.7z"/>
+    </symbol>
+    <symbol id="i-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"
+            stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.8 9.6 17.4 19 8"/></symbol>
+  </defs>
+</svg>
+
+<div class="app">
+  <header class="topbar">
+    <button class="brand" id="brand" data-go="home" aria-label="PageSnap — go to Home">
+      <svg width="30" height="30" aria-hidden="true"><use href="#i-logo"/></svg>
+      <b>PageSnap</b>
+    </button>
+    <span class="spacer"></span>
+    <button class="icon-btn" id="theme-quick" aria-label="Switch between dark and light appearance"
+            title="Appearance">
+      <svg aria-hidden="true"><use href="#i-moon" id="theme-quick-icon"/></svg>
+    </button>
+  </header>
+
+  <main id="screens">
+    <!-- ═══ HOME ═══════════════════════════════════════════════════════════ -->
+    <section class="screen" id="screen-home">
+      <div class="stack">
+        <div>
+          <h2 id="greeting">Hello</h2>
+          <p class="sub">Turn a video of notes into a clean PDF — one screenshot per page,
+            never mid-stroke.</p>
+        </div>
+
+        <div class="card hero">
+          <h3>Turn videos into PDFs</h3>
+          <p>Capture important slides and pages from your lessons.</p>
+          <div class="hero-actions">
+            <button class="btn primary big" id="go-create">
+              <svg aria-hidden="true"><use href="#i-sparkle"/></svg>Create a PDF
+            </button>
+            <button class="btn ghost big" id="go-import">
+              <svg aria-hidden="true"><use href="#i-upload"/></svg>Import video
+            </button>
+          </div>
+        </div>
+
+        <div class="card" id="resume" style="display:none">
+          <div class="card-head">
+            <h3>You have work in progress</h3>
+          </div>
+          <p class="hint" id="resume-text" style="margin-top:0"></p>
+          <button class="btn primary big" id="resume-go" style="margin-top:10px">Continue</button>
+        </div>
+
+        <div class="card">
+          <div class="card-head"><h3>Import options</h3></div>
+          <div class="tiles">
+            <button class="tile" id="opt-upload">
+              <span class="ico"><svg aria-hidden="true"><use href="#i-upload"/></svg></span>
+              <span>
+                <b>Upload a video</b>
+                <span>From this device — always works, nothing leaves it</span>
+              </span>
+              <span class="chev" aria-hidden="true"><svg width="18" height="18"><use href="#i-right"/></svg></span>
+            </button>
+            <button class="tile" id="opt-link">
+              <span class="ico"><svg aria-hidden="true"><use href="#i-link"/></svg></span>
+              <span>
+                <b>Paste a video link</b>
+                <span>Direct file links, and public pages that allow it</span>
+              </span>
+              <span class="chev" aria-hidden="true"><svg width="18" height="18"><use href="#i-right"/></svg></span>
+            </button>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-head">
+            <h3><svg width="18" height="18" aria-hidden="true"
+                     style="vertical-align:-3px;margin-right:7px"><use href="#i-library"/></svg>Recent PDFs</h3>
+            <button class="link-btn" data-go="library">See all</button>
+          </div>
+          <div id="recent"></div>
+        </div>
+
+        <div class="card" id="guide">
+          <div class="card-head">
+            <h3>How it works</h3>
+            <button class="icon-btn" id="dismiss-guide" aria-label="Hide this guide"
+                    title="Hide" style="width:38px;height:38px;min-height:38px">×</button>
+          </div>
+          <ol class="steps">
+            <li><span class="n">1</span><span><b>Import</b>
+              <span>Pick a video from this device, or paste a link that is allowed.</span></span></li>
+            <li><span class="n">2</span><span><b>Review</b>
+              <span>PageSnap photographs each page as it changes. Untick any you do not want,
+                reorder them, or grab a moment by hand.</span></span></li>
+            <li><span class="n">3</span><span><b>Save</b>
+              <span>Name the PDF, make it, and download it. It is also kept in your Library.</span></span></li>
+          </ol>
+        </div>
+      </div>
+    </section>
+
+    <!-- ═══ CREATE / IMPORT ════════════════════════════════════════════════ -->
+    <section class="screen" id="step-input" style="display:none">
+      <div class="stack">
+        <div class="card-head">
+          <h3>Import a video</h3>
+          <button class="link-btn" data-go="home">Home</button>
+        </div>
+
+        <div class="card">
+          <div class="drop" id="drop" tabindex="0" role="button"
+               aria-label="Choose a video file from this device">
+            <svg aria-hidden="true"><use href="#i-upload"/></svg>
+            <b>Choose a video from this device</b>
+            <span>Tap to pick a file, or drag one here on a computer —
+              mp4, mov, mkv, webm, m4v, avi</span>
+            <input type="file" id="file" accept="video/*" hidden>
+          </div>
+
+          <div class="or">or paste a link</div>
+          <div class="row">
+            <input type="text" id="link" inputmode="url" autocomplete="off" spellcheck="false"
+                   aria-label="Video link"
+                   placeholder="https://… a direct video file, or a public page"
+                   style="flex:1;min-width:190px">
+            <button class="btn ghost" id="import" style="white-space:nowrap">Import</button>
+          </div>
+          <div class="url-state" id="url-state" role="status" aria-live="polite"></div>
+
+          <details style="margin-top:12px">
+            <summary>Which links work, and which never will</summary>
+            <ul class="src-list" id="src-list"><li>Loading…</li></ul>
+          </details>
+
+          <details style="margin-top:10px">
+            <summary>Detection and picture options</summary>
+            <div class="grid2" style="margin-top:12px">
+              <div>
+                <label class="field" for="sens">How eager should it be?</label>
+                <select id="sens">
+                  <option value="balanced" selected>Balanced — recommended</option>
+                  <option value="strict">Strict — fewer, sure pages</option>
+                  <option value="eager">Eager — catch subtle changes</option>
+                </select>
+              </div>
+              <div>
+                <label class="field" for="fmt">Pictures inside the PDF</label>
+                <select id="fmt">
+                  <option value="jpeg" selected>Sharp JPEG (small file)</option>
+                  <option value="png">Lossless PNG (bigger, best for diagrams)</option>
+                </select>
+              </div>
+            </div>
+            <p class="hint">These are applied while the video is being read, so they are chosen
+              here rather than at export.</p>
+          </details>
+        </div>
+      </div>
+    </section>
+
+    <!-- ═══ PROCESSING ═════════════════════════════════════════════════════ -->
+    <section class="screen" id="step-progress" style="display:none">
+      <div class="stack">
+        <div class="card">
+          <span class="spinner" aria-hidden="true"></span>
+          <div class="stage" id="stage" role="status" aria-live="polite"><b>Working…</b></div>
+          <div class="bar" id="bar"><i id="barfill"></i></div>
+          <div class="stage" id="stage2"></div>
+          <div class="proc-stats" id="proc-stats"></div>
+          <p class="hint" id="proc-note"></p>
+          <div class="row" style="margin-top:14px">
+            <button class="btn quiet" id="proc-home">Back to Home</button>
+          </div>
+          <p class="hint" style="margin-top:8px">Leaving this screen is safe — the work carries on
+            and you can come back to it.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ═══ REVIEW ═════════════════════════════════════════════════════════ -->
+    <section class="screen" id="step-result" style="display:none">
+      <div class="stack">
+        <div class="card">
+          <div class="card-head">
+            <h3>Review the pages</h3>
+            <button class="link-btn" id="review-back">Import</button>
+          </div>
+          <div class="stage" id="summary"><b>Pages found</b></div>
+          <div class="stage" id="summary2"></div>
+          <div class="row tight" style="margin-top:12px">
+            <button class="btn ghost mini" id="all">Keep all</button>
+            <button class="btn ghost mini" id="none">Deselect all</button>
+            <button class="btn ghost mini" id="restore">Restore removed</button>
+            <button class="btn ghost mini" id="preview-sheet">
+              <svg aria-hidden="true"><use href="#i-eye"/></svg>Preview selected</button>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-head" style="margin-bottom:0">
+            <h3>Pages</h3>
+          </div>
+          <p class="hint" style="margin-top:2px">Tap a page to look closely. Tap the tick to remove
+            it from the PDF, and the arrows to move it.</p>
+          <div class="pages" id="pages"></div>
+        </div>
+
+        <div class="card">
+          <div class="card-head"><h3>Add a page by hand</h3></div>
+          <div class="row">
+            <input type="number" id="capture-time" min="0" step="0.1" inputmode="decimal"
+                   aria-label="Time in seconds" placeholder="seconds, e.g. 42.5"
+                   style="flex:1;min-width:140px">
+            <button class="btn ghost" id="capture">
+              <svg aria-hidden="true"><use href="#i-camera"/></svg>Capture</button>
+          </div>
+          <div class="hint" id="capture-hint">Useful when the detector missed a page — grab it by hand.</div>
+        </div>
+
+        <div class="actionbar">
+          <span class="count"><b id="review-count">0 pages</b>
+            <span id="review-count-sub">ready to export</span></span>
+          <button class="btn primary" id="to-export">Create PDF</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ═══ EXPORT ═════════════════════════════════════════════════════════ -->
+    <section class="screen" id="step-export" style="display:none">
+      <div class="stack">
+        <div class="card-head">
+          <h3>Make the PDF</h3>
+          <button class="link-btn" id="export-back">Back to pages</button>
+        </div>
+
+        <div class="card">
+          <label class="field" for="title">Name the PDF</label>
+          <input type="text" id="title" placeholder="e.g. Biology Chapter 6 — Life Processes"
+                 autocomplete="off">
+          <div class="hint" id="filename">will be saved as notes.pdf</div>
+
+          <div class="kv" id="export-options" style="margin-top:14px"></div>
+
+          <button class="btn primary big" id="generate" style="margin-top:16px">
+            <svg aria-hidden="true"><use href="#i-pdf"/></svg>Create PDF</button>
+
+          <div class="pdf-panel" id="pdf-panel" style="display:none">
+            <div class="stage" id="pdf-line" role="status" aria-live="polite"><b>PDF</b></div>
+            <div class="kv" id="pdf-meta"></div>
+            <div class="row" style="margin-top:12px">
+              <button class="btn primary" id="download">
+                <svg aria-hidden="true"><use href="#i-download"/></svg>Download PDF</button>
+              <button class="btn ghost" id="preview-pdf">
+                <svg aria-hidden="true"><use href="#i-eye"/></svg>Preview</button>
+            </div>
+            <div class="row" style="margin-top:8px">
+              <button class="btn quiet mini" id="open-library">Open my Library</button>
+            </div>
+          </div>
+
+          <div class="banner" id="stale" style="display:none">
+            <span>The page list changed after this PDF was made. Create it again so the download
+              matches what you see.</span>
+            <button class="btn ghost mini" id="regen-banner">Regenerate PDF</button>
+          </div>
+
+          <div class="err" id="pdf-error" style="display:none;margin-top:12px"></div>
+          <div class="hint" id="privacy" style="margin-top:14px">Nothing is uploaded anywhere —
+            the pages are read and the PDF is written on this computer.</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ═══ LIBRARY ════════════════════════════════════════════════════════ -->
+    <section class="screen" id="screen-library" style="display:none">
+      <div class="stack">
+        <div class="card-head">
+          <h3>Library</h3>
+          <button class="link-btn" data-go="home">Home</button>
+        </div>
+        <div class="stack" id="library-list"></div>
+        <p class="hint" id="library-folder"></p>
+      </div>
+    </section>
+
+    <!-- ═══ SETTINGS ═══════════════════════════════════════════════════════ -->
+    <section class="screen" id="screen-settings" style="display:none">
+      <div class="stack">
+        <div class="card-head"><h3>Settings</h3></div>
+
+        <div class="card">
+          <div class="card-head"><h3>Appearance</h3></div>
+          <div class="setting">
+            <span class="txt"><b>Theme</b><span>PageSnap starts dark. Pick what suits your eyes.</span></span>
+            <span class="seg" role="group" aria-label="Theme">
+              <button data-theme-set="dark" aria-pressed="false">Dark</button>
+              <button data-theme-set="light" aria-pressed="false">Light</button>
+              <button data-theme-set="system" aria-pressed="false">System</button>
+            </span>
+          </div>
+          <div class="setting">
+            <span class="txt"><b>How it works</b><span id="guide-state">The three-step guide is shown
+              on Home.</span></span>
+            <button class="btn ghost mini" id="guide-toggle">Show it again</button>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-head"><h3>Privacy</h3></div>
+          <p class="hint" style="margin-top:0">The video you choose is read on this computer, and the
+            PDF is written on this computer. There is no account, no database and no cloud storage:</p>
+          <ul class="src-list">
+            <li>Local files never leave the machine — decoding and page detection happen using the
+              bundled ffmpeg and the PageSnap engine.</li>
+            <li>PDFs you create are kept in a folder on this computer (the path is shown in the
+              Library) so you can download them again later.</li>
+            <li><b>Links are fetched from the internet</b> by yt-dlp when you import one. If you
+              never import a link, PageSnap makes no outside requests except loading its own page.</li>
+            <li>Nothing is sent to a third party, and there is no analytics or tracking of any kind.</li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <div class="card-head"><h3>Supported input</h3></div>
+          <div id="settings-formats" class="kv"></div>
+          <div id="settings-links" style="margin-top:12px"></div>
+        </div>
+
+        <div class="card">
+          <div class="card-head"><h3>About</h3></div>
+          <div class="kv">
+            <span><b>PageSnap</b> prototype</span>
+            <span>Detection engine: <b>balanced / strict / eager presets</b></span>
+            <span id="about-version"></span>
+          </div>
+          <p class="hint">Screenshots are taken when a page has changed <i>and</i> settled — never
+            every frame, never mid-stroke, never mid-fade.</p>
+          <button class="btn ghost big" data-go="home" style="margin-top:12px">Back to Home</button>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- ═══ BOTTOM NAVIGATION ═══════════════════════════════════════════════ -->
+  <nav class="tabbar" id="tabbar" aria-label="Main">
+    <button data-go="home" class="on" aria-current="page">
+      <svg aria-hidden="true"><use href="#i-home"/></svg><span>Home</span><span class="dot"></span>
+    </button>
+    <button data-go="create">
+      <svg aria-hidden="true"><use href="#i-create"/></svg><span>Create</span><span class="dot"></span>
+    </button>
+    <button data-go="library">
+      <svg aria-hidden="true"><use href="#i-library"/></svg><span>Library</span><span class="dot"></span>
+    </button>
+    <button data-go="settings">
+      <svg aria-hidden="true"><use href="#i-settings"/></svg><span>Settings</span><span class="dot"></span>
+    </button>
+  </nav>
+</div>
+
+<div class="lightbox" id="lightbox" role="dialog" aria-modal="true" aria-label="Preview">
+  <button class="close" aria-label="Close preview">×</button>
+  <div id="lightbox-body"></div>
+</div>
+<div class="err" id="err" role="alert" style="display:none"></div>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script>
+
+const $ = id => document.getElementById(id);
+let jobId = null, poll = null, state = null, busy = false;
+
+// ── tiny helpers ────────────────────────────────────────────────────────────
+const SCREENS = {                       // the original three are kept by id
+  input:'step-input', progress:'step-progress', result:'step-result',
+  export:'step-export', home:'screen-home', library:'screen-library',
+  settings:'screen-settings'
+};
+const SCREEN_TAB = { home:'home', input:'create', progress:'create', result:'create',
+                     export:'create', library:'library', settings:'settings' };
+
+function show(step){
+  // "create" is what the bottom bar calls the destination; the import screen is the
+  // screen that serves it. Keeping the two names in one place means the tab bar, the
+  // Home buttons and the failure path all land on the same thing.
+  if (step === 'create') step = 'input';
+  const target = SCREENS[step] || SCREENS.home;
+  for (const id of Object.values(SCREENS)){
+    const el = $(id);
+    if (el) el.style.display = (id === target) ? '' : 'none';
+  }
+  const tab = SCREEN_TAB[step] || 'home';
+  document.querySelectorAll('#tabbar [data-go]').forEach(button => {
+    const on = button.dataset.go === tab;
+    button.classList.toggle('on', on);
+    if (on) button.setAttribute('aria-current', 'page');
+    else button.removeAttribute('aria-current');
+  });
+  if (window.scrollY > 4){
+    const smooth = !(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+    window.scrollTo({top:0, behavior: smooth ? 'smooth' : 'auto'});
+  }
+  if (step === 'home'){ refreshResume(); refreshRecent(); }
+  if (step === 'library') refreshLibrary();
+  if (step === 'export' && state) renderExport();
+}
+function fail(msg){
+  $('err').style.display = 'block';
+  $('err').innerHTML = msg;
+}
+function clearErr(){ $('err').style.display = 'none'; }
+function esc(s){ return String(s == null ? '' : s).replace(/[&<>"']/g,
+  c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function fmtBytes(n){
+  if (!n) return '—';
+  return n > 1048576 ? (n/1048576).toFixed(2) + ' MB' : Math.round(n/1024) + ' KB';
+}
+function openLightbox(node){
+  const body = $('lightbox-body');
+  body.innerHTML = '';
+  body.appendChild(node);
+  $('lightbox').classList.add('on');
+}
+function closeLightbox(){
+  const url = $('lightbox').dataset.objectUrl;
+  if (url){ URL.revokeObjectURL(url); delete $('lightbox').dataset.objectUrl; }
+  $('lightbox').classList.remove('on');
+  $('lightbox-body').innerHTML = '';
+}
+
+// One place that talks to the server, so every failure is reported the same way
+// and never silently swallowed.
+async function api(path, options){
+  let response;
+  try {
+    response = await fetch(path, options);
+  } catch (networkError) {
+    throw new Error('The PageSnap server is not reachable. Is it still running?');
+  }
+  const type = response.headers.get('content-type') || '';
+  let payload = null;
+  if (type.includes('application/json')) {
+    try { payload = await response.json(); } catch (_) { payload = null; }
+  }
+  if (!response.ok) {
+    let detail = payload && (payload.detail || payload.error || payload.message);
+    if (Array.isArray(detail)) {                 // FastAPI's validation envelope
+      detail = detail.map(d => d && (d.msg || JSON.stringify(d))).join('; ');
+    }
+    const advice = payload && payload.advice;
+    const kind = payload && payload.kind;
+    const error = new Error(typeof detail === 'string' ? detail : `Request failed (${response.status})`);
+    error.kind = kind; error.advice = advice; error.status = response.status;
+    throw error;
+  }
+  return payload;
+}
+
+function showSourceError(error, offerUpload = true){
+  const bits = [`<b>${esc(error.message)}</b>`];
+  if (error.advice) bits.push(esc(error.advice));
+  // Whatever went wrong with a *link*, uploading a file is the way through - so say
+  // so every time, not only for the platforms that ask for a login. Failures of a
+  // PDF action are not link failures, and there the advice would be nonsense.
+  if (offerUpload){
+    bits.push('You can always <b>choose a video from this device</b> instead — that never '
+              + 'depends on a site letting us in.');
+  }
+  fail(bits.join('<br>'));
+}
+
+// ── source: link ────────────────────────────────────────────────────────────
+function urlState(text, kind){
+  const el = $('url-state');
+  el.className = 'url-state' + (kind ? ' ' + kind : '');
+  el.innerHTML = text;
+}
+
+$('import').onclick = async () => {
+  clearErr();
+  const url = $('link').value.trim();
+  if (!url) { urlState('Paste a link first.', 'bad'); return; }
+  $('import').disabled = true;
+  urlState('<span class="spin"></span>Checking the link…', 'busy');
+  try {
+    const started = await api('/api/fetch', {method:'POST', body: form({url})});
+    jobId = started.id;
+    // Say what the link turned out to be - a Short, a video, a file link - instead
+    // of a generic "importing" that hides which source is being fetched.
+    const what = started.source && started.source.label;
+    urlState('<span class="spin"></span>Importing ' + (what ? esc(what) : 'the video') + '…',
+             'busy');
+    show('progress');
+    startPolling();
+  } catch (error) {
+    urlState('✕ ' + esc(error.message), 'bad');
+    showSourceError(error);
+    $('import').disabled = false;
+  }
+};
+
+// ── source: file ────────────────────────────────────────────────────────────
+function form(extra){
+  const f = new FormData();
+  f.append('sensitivity', $('sens').value);
+  f.append('image_format', $('fmt').value);
+  f.append('quality', '92');
+  f.append('title', '');
+  f.append('max_width', '2200');
+  for (const [k, v] of Object.entries(extra || {})) f.append(k, v);
+  return f;
+}
+
+async function sendVideo(file){
+  clearErr();
+  if (!file) return;
+  $('import').disabled = true;
+  show('progress');
+  $('stage').innerHTML = '<b>Uploading the video…</b>';
+  try {
+    const started = await api('/api/upload', {method:'POST', body: (() => {
+      const f = form({}); f.append('video', file); return f;
+    })()});
+    jobId = started.id;
+    if (started.title && !$('title').value) $('title').value = started.title;
+    startPolling();
+  } catch (error) {
+    $('import').disabled = false;
+    show('input');
+    showSourceError(error);
+  }
+}
+
+$('drop').onclick = () => $('file').click();
+$('file').onchange = e => sendVideo(e.target.files[0]);
+['dragenter','dragover'].forEach(ev => $('drop').addEventListener(ev, e => {
+  e.preventDefault(); $('drop').classList.add('hot');
+}));
+['dragleave','drop'].forEach(ev => $('drop').addEventListener(ev, e => {
+  e.preventDefault(); $('drop').classList.remove('hot');
+}));
+$('drop').addEventListener('drop', e => sendVideo(e.dataTransfer.files[0]));
+
+// ── polling ─────────────────────────────────────────────────────────────────
+function startPolling(){
+  if (poll) clearInterval(poll);
+  poll = setInterval(check, 600);
+  check();
+}
+
+async function check(){
+  if (!jobId) return;
+  let data;
+  try { data = await api(`/api/jobs/${jobId}`); } catch (_) { return; }
+  state = data;
+
+  $('stage').innerHTML = '<b>' + esc(state.stage || state.status) + '…</b>';
+  $('barfill').style.width = Math.round((state.fraction || 0) * 100) + '%';
+  renderProgressExtras();
+
+  if (state.status === 'downloading'){
+    const pct = Math.round((state.download_fraction || 0) * 100);
+    $('stage2').textContent = `${state.download_stage || 'downloading'}${pct ? ' · ' + pct + '%' : ''}`;
+    $('stage').innerHTML = '<b>Importing the link…</b>';
+  } else if (state.status === 'analysing' || state.status === 'queued'){
+    $('stage2').textContent = state.duration
+      ? `analysing ${state.duration}s of video…`
+      : 'analysing the video…';
+  } else if (state.status === 'ready'){
+    $('stage2').textContent = `${state.pages.length} page(s) found`;
+  }
+
+  if (state.status === 'failed'){
+    clearInterval(poll); poll = null;
+    $('import').disabled = false;
+    if (state.source_kind === 'link') urlState('✕ ' + esc(state.error), 'bad');
+    renderFailure();
+    return;
+  }
+  if (state.status === 'ready'){
+    clearInterval(poll); poll = null;
+    $('import').disabled = false;
+    if (state.source_kind === 'link'){
+      urlState(`✓ Imported. ${state.pages.length} page(s) found in ${state.duration}s of video.`,
+               'good');
+    }
+    render();
+    show('result');
+  }
+}
+
+function renderFailure(){
+  show('input');
+  const bits = [`<b>${esc(state.error || 'That video could not be processed.')}</b>`];
+  if (state.error_advice) bits.push(esc(state.error_advice));
+  bits.push('<br>Want to try again with a different setting? ' +
+            '<button class="btn ghost mini" id="retry-eager" style="margin-top:8px">Retry with Eager</button> ' +
+            '<button class="btn ghost mini" id="retry-balanced" style="margin-top:8px">Retry with Balanced</button>');
+  fail(bits.join('<br>'));
+  const eager = $('retry-eager'), balanced = $('retry-balanced');
+  if (eager) eager.onclick = () => retry('eager');
+  if (balanced) balanced.onclick = () => retry('balanced');
+}
+
+async function retry(sensitivity){
+  if (!jobId) return;
+  clearErr();
+  show('progress');
+  $('stage').innerHTML = '<b>Analysing again…</b>';
+  try {
+    state = await api(`/api/jobs/${jobId}/reanalyse`, {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({sensitivity})
+    });
+    startPolling();
+  } catch (error) {
+    show('input'); showSourceError(error);
+  }
+}
+
+// ── the review grid ─────────────────────────────────────────────────────────
+function render(){
+  const grid = $('pages');
+  grid.innerHTML = '';
+  for (const p of state.pages){
+    const el = document.createElement('div');
+    el.className = 'page' + (p.removed ? ' off' : '');
+    el.dataset.uid = p.uid;
+    el.innerHTML = `
+      <button type="button" class="tick ${p.removed ? '' : 'on'}"
+              aria-pressed="${p.removed ? 'false' : 'true'}"
+              aria-label="${p.removed ? `Include page ${p.position} in the PDF`
+                                      : `Leave page ${p.position} out of the PDF`}"
+              title="${p.removed ? 'Put this page back' : 'Remove this page'}">${p.removed ? '' : '✓'}</button>
+      <span class="pos" aria-hidden="true">#${p.position}</span>
+      <img src="${p.thumbnail}" alt="Page ${p.position} of the notes, captured at ${p.time.toFixed(1)} seconds" loading="lazy">
+      <div class="meta">
+        <span class="tag ${p.manual ? 'manual' : ''}">${p.manual ? 'manual' : 'auto'} · ${p.time.toFixed(1)}s</span>
+      </div>
+      <div class="actions">
+        <button class="btn ghost mini" data-act="left" aria-label="Move page ${p.position} earlier" title="Move earlier"><svg aria-hidden="true"><use href="#i-left"/></svg></button>
+        <button class="btn ghost mini" data-act="remove" aria-label="${p.removed ? `Put page ${p.position} back` : `Remove page ${p.position}`}" title="${p.removed ? 'Put this page back' : 'Remove this page'}">${p.removed ? '↺' : '✕'}</button>
+        <button class="btn ghost mini" data-act="right" aria-label="Move page ${p.position} later" title="Move later"><svg aria-hidden="true"><use href="#i-right"/></svg></button>
+      </div>`;
+    grid.appendChild(el);
+  }
+
+  grid.querySelectorAll('.page').forEach(card => {
+    const uid = card.dataset.uid;
+    card.querySelector('.tick').onclick = () => toggleRemoved(uid);
+    card.querySelector('img').onclick = () => {
+      const img = new Image();
+      img.src = `/api/jobs/${jobId}/page/${uid}`;
+      img.alt = 'full size page';
+      openLightbox(img);
+    };
+    card.querySelectorAll('button[data-act]').forEach(btn => {
+      btn.onclick = () => {
+        const act = btn.dataset.act;
+        if (act === 'remove') return toggleRemoved(uid);
+        if (act === 'left') return move(uid, -1);
+        if (act === 'right') return move(uid, +1);
+      };
+    });
+  });
+
+  const kept = state.selected_count;
+  if ($('review-count')){
+    $('review-count').textContent = `${kept} of ${state.pages.length} pages selected`;
+    $('review-count-sub').textContent = (state.pdf && state.pdf.stale)
+      ? 'the PDF needs remaking' : 'ready to export';
+  }
+  $('summary').innerHTML = `<b>${state.pages.length} page(s) found</b>`;
+  $('summary2').textContent =
+    `${kept} selected · ${state.removed_count} removed · ${state.duration}s of video` +
+    (state.source_kind === 'link' ? ' · imported from a link' : '');
+  if (!$('title').value) $('title').value = state.title || '';
+  updateFilename();
+  renderPdfPanel();
+}
+
+function updateFilename(){
+  const raw = $('title').value.trim();
+  const safe = (raw || 'notes').replace(/[^\w \-_().\[\]]+/g, '').trim() || 'notes';
+  $('filename').textContent = 'will be saved as ' + (/\.pdf$/i.test(safe) ? safe : safe + '.pdf');
+}
+
+let pendingEdit = null;            // the last page-edit request still on its way
+async function pushEdits(body){
+  if (busy) return;
+  busy = true;
+  const call = api(`/api/jobs/${jobId}/pages`, {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify(body)
+  });
+  pendingEdit = call;
+  try {
+    state = await call;
+    render();
+  } catch (error) {
+    showSourceError(error);
+  } finally { busy = false; pendingEdit = null; }
+}
+
+function currentOrder(){ return state.pages.map(p => p.uid); }
+function currentRemoved(){ return state.pages.filter(p => p.removed).map(p => p.uid); }
+
+function toggleRemoved(uid){
+  const removed = new Set(currentRemoved());
+  removed.has(uid) ? removed.delete(uid) : removed.add(uid);
+  pushEdits({order: currentOrder(), removed: [...removed]});
+}
+
+function move(uid, delta){
+  const order = currentOrder();
+  const from = order.indexOf(uid);
+  const to = from + delta;
+  if (from < 0 || to < 0 || to >= order.length) return;
+  [order[from], order[to]] = [order[to], order[from]];
+  pushEdits({order, removed: currentRemoved()});
+}
+
+$('all').onclick     = () => pushEdits({order: currentOrder(), removed: []});
+$('none').onclick    = () => pushEdits({order: currentOrder(), removed: currentOrder()});
+$('restore').onclick = () => pushEdits({order: currentOrder(), removed: []});
+$('title').oninput   = updateFilename;
+$('title').onchange  = () => pushEdits({order: currentOrder(), removed: currentRemoved(),
+                                        title: $('title').value});
+
+$('preview-sheet').onclick = async () => {
+  clearErr();
+  try {
+    const response = await fetch(`/api/jobs/${jobId}/sheet`);
+    if (!response.ok) throw new Error((await response.json().catch(() => ({}))).detail
+                                      || 'Could not draw the preview.');
+    const url = URL.createObjectURL(await response.blob());
+    const img = new Image();
+    img.onload = () => URL.revokeObjectURL(url);
+    img.src = url;
+    img.alt = 'the pages that will be exported';
+    openLightbox(img);
+  } catch (error) { showSourceError(error); }
+};
+
+// ── manual capture ──────────────────────────────────────────────────────────
+$('capture').onclick = async () => {
+  clearErr();
+  const raw = $('capture-time').value;
+  if (raw === '' || isNaN(parseFloat(raw))){
+    $('capture-hint').innerHTML = '<span style="color:#ffb4ac">Give a time in seconds, e.g. 42.5</span>';
+    return;
+  }
+  $('capture').disabled = true;
+  try {
+    const result = await api(`/api/jobs/${jobId}/capture`, {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({time: parseFloat(raw)})
+    });
+    state = result.job;
+    render();
+    $('capture-hint').innerHTML = `Added the moment at ${parseFloat(raw).toFixed(1)}s as the last page.`;
+    $('capture-time').value = '';
+    if (!state.can_capture) $('capture').disabled = true;
+  } catch (error) {
+    $('capture-hint').innerHTML = `<span style="color:#ffb4ac">${esc(error.message)}</span>`;
+  } finally { $('capture').disabled = false; }
+};
+
+// ── generate / preview / download ───────────────────────────────────────────
+function pdfLine(text, spinning){
+  $('pdf-line').innerHTML = (spinning ? '<span class="spin"></span>' : '') + text;
+}
+
+function renderPdfPanel(){
+  const pdf = (state && state.pdf) || {};
+  const panel = $('pdf-panel');
+  const stale = $('stale');
+  const err = $('pdf-error');
+
+  if (pdf.status === 'generating'){
+    panel.style.display = 'block';
+    pdfLine(esc(pdf.stage || 'generating') + '…', true);
+    $('pdf-meta').innerHTML = '';
+    $('download').disabled = true;
+    $('preview-pdf').disabled = true;
+  } else if (pdf.status === 'ready'){
+    panel.style.display = 'block';
+    pdfLine(`<b>${esc(pdf.filename)}</b> is ready`, false);
+    $('pdf-meta').innerHTML =
+      `<span><b>${pdf.page_count}</b> page(s)</span>` +
+      `<span><b>${fmtBytes(pdf.byte_size)}</b></span>` +
+      `<span>${pdf.verified ? '✓ verified: ' + esc(pdf.verify_note || 'checked') : 'not verified'}</span>`;
+    $('download').disabled = !!pdf.stale;
+    // While the selection no longer matches the file, showing it would be a preview
+    // of something other than what the user has chosen - and the server refuses it.
+    $('preview-pdf').disabled = !!pdf.stale;
+    if (state.library_id){
+      $('pdf-meta').innerHTML += '<span>Kept in your <b>Library</b></span>';
+    }
+  } else if (pdf.status === 'failed'){
+    panel.style.display = 'none';
+    err.style.display = 'block';
+    err.innerHTML = `<b>The PDF could not be written.</b><br>${esc(pdf.error || 'unknown reason')}`;
+  } else {
+    panel.style.display = 'none';
+  }
+  if (pdf.status !== 'failed') err.style.display = 'none';
+  stale.style.display = pdf.stale ? 'flex' : 'none';
+  const none = state.selected_count === 0;
+  $('generate').disabled = none;
+  const label = none
+    ? 'Tick at least one page'
+    : (pdf.status === 'ready'
+        ? (pdf.stale ? 'Regenerate PDF' : 'Create PDF again')
+        : 'Create PDF');
+  $('generate').innerHTML = '<svg aria-hidden="true"><use href="#i-pdf"/></svg>' + label;
+  if ($('export-options') && state) renderExport();
+}
+
+$('generate').onclick = async () => {
+  clearErr();
+  // An edit that is still on its way to the server would bump the revision *after*
+  // the PDF was built from the old one, leaving a freshly made PDF already stale.
+  // A fast user can type a name and click straight away, so wait for it here.
+  if (pendingEdit){ try { await pendingEdit; } catch (_) { /* reported by pushEdits */ } }
+  const button = $('generate');
+  button.disabled = true;
+  pdfLine('starting…', true);
+  $('pdf-panel').style.display = 'block';
+  try {
+    // The server writes the file while this request is open, so the panel shows
+    // a working state rather than pretending it is instant.
+    state = await api(`/api/jobs/${jobId}/pdf`, {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({title: $('title').value})
+    });
+    render();
+  } catch (error) {
+    if (error.kind === 'selection') {
+      showSourceError(error);
+    } else {
+      $('pdf-panel').style.display = 'block';
+      pdfLine('could not be generated', false);
+      $('pdf-error').style.display = 'block';
+      $('pdf-error').innerHTML = `<b>${esc(error.message)}</b>` +
+        (error.advice ? '<br>' + esc(error.advice) : '');
+    }
+  } finally {
+    button.disabled = false;
+    renderPdfPanel();
+  }
+};
+
+$('regen-banner').onclick = () => $('generate').click();
+
+async function fetchPdfBlob(mode){
+  const response = await fetch(`/api/jobs/${jobId}/pdf?mode=${mode}`);
+  if (!response.ok){
+    const payload = await response.json().catch(() => ({}));
+    throw new Error(payload.detail || `Could not fetch the PDF (${response.status}).`);
+  }
+  const blob = await response.blob();
+
+  // Check the bytes before they reach the browser's save dialog. An empty body, a
+  // truncated file, or an error page served with 200 would otherwise be saved as a
+  // .pdf that will not open - the worst possible outcome, and a silent one.
+  if (!blob.size){
+    throw new Error('The PDF came back empty. Generate it again.');
+  }
+  const head = new TextDecoder('latin1')
+    .decode(new Uint8Array(await blob.slice(0, 5).arrayBuffer()));
+  if (head !== '%PDF-'){
+    throw new Error(`That was not a PDF - the file starts with ${JSON.stringify(head)}. ` +
+                    'Generate it again.');
+  }
+  // A missing or wrong MIME type does not change the bytes; give the blob the right
+  // one so the browser treats it as a PDF either way.
+  return blob.type === 'application/pdf' ? blob : new Blob([blob], {type: 'application/pdf'});
+}
+
+$('preview-pdf').onclick = async () => {
+  clearErr();
+  try {
+    const blob = await fetchPdfBlob('preview');
+    const url = URL.createObjectURL(blob);
+    const frame = document.createElement('iframe');
+    frame.src = url;
+    frame.title = 'PDF preview';
+    openLightbox(frame);
+    // the object URL is revoked when the lightbox closes, or when a new preview
+    // replaces it - never while the frame is still loading
+    const previous = $('lightbox').dataset.objectUrl;
+    $('lightbox').dataset.objectUrl = url;
+    if (previous) URL.revokeObjectURL(previous);
+  } catch (error) { showSourceError(error, false); }
+};
+
+$('download').onclick = async () => {
+  clearErr();
+  const button = $('download');
+  button.disabled = true;
+  button.innerHTML = '<span class="spin"></span>Preparing…';
+  try {
+    const blob = await fetchPdfBlob('download');
+    let name = (state.pdf && state.pdf.filename) || 'notes.pdf';
+    if (!/\.pdf$/i.test(name)) name += '.pdf';        // a download has to end in .pdf
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = name;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    // Revoked only after the browser has had time to start writing the file:
+    // revoking immediately can cancel a download that has not begun yet.
+    setTimeout(() => URL.revokeObjectURL(url), 20000);
+    $('privacy').innerHTML = `Saved <b>${esc(link.download)}</b> · ${fmtBytes(blob.size)} · `
+      + `${state.pdf.page_count} page(s).`
+      + (state.library_id ? ' A copy is in your Library.' : ' Everything stayed on this device.');
+  } catch (error) {
+    showSourceError(error, false);            // a PDF problem, not a video-link problem
+  } finally {
+    button.innerHTML = '<svg aria-hidden="true"><use href="#i-download"/></svg>Download PDF';
+    renderPdfPanel();
+  }
+};
+
+// ── lightbox + misc ─────────────────────────────────────────────────────────
+$('lightbox').onclick = e => { if (e.target.id === 'lightbox') closeLightbox(); };
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeLightbox(); });
+
+// say plainly which links work, straight from the server
+fetch('/api/sources').then(r => r.json()).then(info => {
+  const items = [];
+  items.push('<li><b>Works:</b> a link that points straight at a video file ' +
+             '(.mp4, .webm, .mov, .mkv) or a public page on a site that serves video ' +
+             'without a login.</li>');
+  items.push(`<li><b>Often asks for a login:</b> ${info.link.often_needs_login.map(esc).join(', ')}. ` +
+             `This server will not pretend to be you — it will say so, and you can upload the file instead.</li>`);
+  items.push(`<li><b>Never:</b> ${info.link.never.map(esc).join('; ')}.</li>`);
+  items.push('<li><b>YouTube:</b> a Short or a normal video link is recognised by its ' +
+             'video id and fetched with yt-dlp — no login, no DRM bypass. An embedded ' +
+             'player is a page, not a file, so its video id is used instead. Playlists, ' +
+             'channels and search pages are refused up front.</li>');
+  items.push('<li><b>Files from this device always work</b> and never touch the network.</li>');
+  $('src-list').innerHTML = items.join('');
+}).catch(() => {
+  $('src-list').innerHTML = '<li>Could not load the list — the server is not responding.</li>';
+});
+
+// Which screen opens first is decided in boot(), at the very end of this script.
+
+
+// ════════════════════════════════════════════════════════════════════════════
+// UI layer added by the redesign. Everything above this line is the original
+// PageSnap logic (upload, link import, detection polling, review edits, manual
+// capture, PDF generation and download) carried over unchanged, except where a
+// comment marks a deliberate patch. Nothing here re-implements any of it.
+// ════════════════════════════════════════════════════════════════════════════
+
+// ── appearance ──────────────────────────────────────────────────────────────
+const THEME_KEY = 'pagesnap-theme';
+let themeChoice = 'dark';
+
+function prefersLight(){
+  return !!(window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches);
+}
+function resolvedTheme(choice){
+  return choice === 'system' ? (prefersLight() ? 'light' : 'dark') : choice;
+}
+function applyTheme(choice, save){
+  themeChoice = choice;
+  const resolved = resolvedTheme(choice);
+  document.documentElement.dataset.theme = resolved;
+  const meta = document.querySelector('meta[name="theme-color"]:not([media])');
+  if (meta) meta.setAttribute('content', resolved === 'light' ? '#f5f6fb' : '#0d1220');
+  // the quick toggle shows what you would switch *to*
+  const use = document.querySelector('#theme-quick-icon');
+  if (use) use.setAttribute('href', resolved === 'light' ? '#i-moon' : '#i-sun');
+  document.querySelectorAll('[data-theme-set]').forEach(button => {
+    button.setAttribute('aria-pressed', String(button.dataset.themeSet === choice));
+  });
+  if (save){ try { localStorage.setItem(THEME_KEY, choice); } catch (_) {} }
+}
+function currentStoredTheme(){
+  try { return localStorage.getItem(THEME_KEY) || 'dark'; } catch (_) { return 'dark'; }
+}
+
+document.querySelectorAll('[data-theme-set]').forEach(button => {
+  button.addEventListener('click', () => applyTheme(button.dataset.themeSet, true));
+});
+$('theme-quick').addEventListener('click', () => {
+  // flipping the quick toggle always leaves you with an explicit choice
+  applyTheme(document.documentElement.dataset.theme === 'light' ? 'dark' : 'light', true);
+});
+if (window.matchMedia){
+  const query = window.matchMedia('(prefers-color-scheme: light)');
+  const onChange = () => { if (themeChoice === 'system') applyTheme('system', false); };
+  query.addEventListener ? query.addEventListener('change', onChange)
+                          : query.addListener(onChange);
+}
+applyTheme(currentStoredTheme(), false);
+
+// ── a small transient message, used to confirm real actions only ────────────
+let toastTimer = null;
+function toast(message){
+  const el = $('toast');
+  el.textContent = message;
+  el.classList.add('on');
+  if (toastTimer) clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove('on'), 2600);
+}
+
+// ── navigation ──────────────────────────────────────────────────────────────
+document.querySelectorAll('[data-go]').forEach(el => {
+  el.addEventListener('click', () => show(el.dataset.go));
+});
+$('opt-upload').onclick = () => { show('input'); setTimeout(() => $('drop').focus(), 40); };
+$('opt-link').onclick   = () => { show('input'); setTimeout(() => $('link').focus(), 40); };
+$('proc-home').onclick  = () => show('home');
+$('review-back').onclick = () => show('input');
+$('export-back').onclick = () => show('result');
+$('open-library').onclick = () => show('library');
+
+$('to-export').onclick = () => {
+  if (!state || !state.pages || !state.pages.length) return show('input');
+  renderExport();
+  show('export');
+};
+
+// the error banner is dismissible; it also never blocks the page underneath
+$('err').addEventListener('click', clearErr);
+$('err').title = 'Tap to dismiss';
+
+// ── the resume card: only ever shown for work that really is in progress ────
+function refreshResume(){
+  const card = $('resume');
+  const hasWork = !!(jobId && state && (state.pages || []).length);
+  card.style.display = hasWork ? 'block' : 'none';
+  if (!hasWork) return;
+  const kept = state.selected_count || 0;
+  $('resume-text').textContent =
+    `${state.pages.length} page(s) found in “${state.source || 'your video'}” — ` +
+    `${kept} selected. Pick up where you left off.`;
+  $('resume-go').onclick = () => { render(); show('result'); };
+}
+
+// ── the library: only real files, listed from the server ───────────────────
+function fmtDate(seconds){
+  if (!seconds) return '';
+  const d = new Date(seconds * 1000);
+  const today = new Date();
+  const sameDay = d.toDateString() === today.toDateString();
+  return sameDay
+    ? 'today at ' + d.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})
+    : d.toLocaleDateString([], {day:'numeric', month:'short', year:'numeric'});
+}
+
+function emptyLibrary(){
+  const box = document.createElement('div');
+  box.className = 'empty';
+  box.innerHTML =
+    `<svg aria-hidden="true"><use href="#i-library"/></svg>
+     <b>No PDFs yet</b>
+     <p>Every PDF you create is kept here so you can download it again later.</p>
+     <button class="btn primary" id="empty-create">
+       <svg aria-hidden="true"><use href="#i-sparkle"/></svg>Create your first PDF</button>`;
+  box.querySelector('#empty-create').onclick = () => show('input');
+  return box;
+}
+
+function libraryRow(item){
+  const row = document.createElement('div');
+  row.className = 'lib-item';
+  row.dataset.id = item.id;
+  row.innerHTML = `
+    <span class="thumb" aria-hidden="true"><svg><use href="#i-pdf"/></svg></span>
+    <span class="lib-body">
+      <b class="name">${esc(item.filename || 'notes.pdf')}</b>
+      <span class="kv">
+        <span><b>${item.page_count}</b> page(s)</span>
+        <span>${fmtBytes(item.byte_size)}</span>
+        <span>${esc(fmtDate(item.updated))}</span>
+      </span>
+      <span class="lib-actions">
+        <button class="btn ghost mini" data-lib="open">
+          <svg aria-hidden="true"><use href="#i-eye"/></svg>Open</button>
+        <button class="btn ghost mini" data-lib="download">
+          <svg aria-hidden="true"><use href="#i-download"/></svg>Download</button>
+        <button class="btn quiet mini" data-lib="rename">Rename</button>
+        <button class="btn quiet mini" data-lib="delete">Delete</button>
+      </span>
+    </span>`;
+
+  const nameEl = row.querySelector('.name');
+  row.querySelector('[data-lib="open"]').onclick = () => openSaved(item, 'preview');
+  row.querySelector('[data-lib="download"]').onclick = () => openSaved(item, 'download');
+
+  row.querySelector('[data-lib="rename"]').onclick = () => {
+    // inline, so no browser prompt is needed and it works on a phone
+    const editor = document.createElement('span');
+    editor.className = 'lib-actions';
+    editor.innerHTML =
+      `<input type="text" aria-label="New PDF name" style="flex:1;min-width:140px">
+       <button class="btn primary mini">Save</button>
+       <button class="btn quiet mini">Cancel</button>`;
+    const input = editor.querySelector('input');
+    input.value = (item.filename || '').replace(/\.pdf$/i, '');
+    nameEl.replaceWith(editor);
+    input.focus(); input.select();
+    editor.querySelectorAll('button')[1].onclick = () => renderLibrary(currentItems);
+    editor.querySelector('button').onclick = async () => {
+      const title = input.value.trim();
+      if (!title) { toast('Give the PDF a name first.'); return; }
+      try {
+        await api(`/api/library/${item.id}`, {
+          method:'POST', headers:{'Content-Type':'application/json'},
+          body: JSON.stringify({title})
+        });
+        toast('Renamed.');
+        refreshLibrary(); refreshRecent();
+      } catch (error) { showSourceError(error, false); }
+    };
+  };
+
+  row.querySelector('[data-lib="delete"]').onclick = async () => {
+    const ok = window.confirm(`Delete “${item.filename}”? The file is removed from this computer.`);
+    if (!ok) return;
+    try {
+      await api(`/api/library/${item.id}`, {method:'DELETE'});
+      toast('Deleted.');
+      refreshLibrary(); refreshRecent();
+    } catch (error) { showSourceError(error, false); }
+  };
+  return row;
+}
+
+async function openSaved(item, mode){
+  clearErr();
+  try {
+    const response = await fetch(item.download + (mode === 'preview' ? '?mode=preview' : ''));
+    if (!response.ok){
+      const payload = await response.json().catch(() => ({}));
+      throw new Error(payload.detail || `Could not open that PDF (${response.status}).`);
+    }
+    const blob = await response.blob();
+    if (!blob.size) throw new Error('That file is empty.');
+    const url = URL.createObjectURL(blob);
+    if (mode === 'preview'){
+      const frame = document.createElement('iframe');
+      frame.src = url; frame.title = 'Saved PDF';
+      openLightbox(frame);
+      const previous = $('lightbox').dataset.objectUrl;
+      $('lightbox').dataset.objectUrl = url;
+      if (previous) URL.revokeObjectURL(previous);
+    } else {
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = /\.pdf$/i.test(item.filename || '') ? item.filename : 'notes.pdf';
+      document.body.appendChild(link); link.click(); link.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 20000);
+      toast(`Downloading ${link.download}`);
+    }
+  } catch (error) { showSourceError(error, false); }
+}
+
+let currentItems = [];
+function renderLibrary(items){
+  const list = $('library-list');
+  list.innerHTML = '';
+  if (!items.length){ list.appendChild(emptyLibrary()); return; }
+  for (const item of items) list.appendChild(libraryRow(item));
+}
+
+async function refreshLibrary(){
+  const list = $('library-list');
+  list.innerHTML = '<div class="card hint">Loading your PDFs…</div>';
+  try {
+    const data = await api('/api/library');
+    currentItems = data.items || [];
+    $('library-folder').textContent = currentItems.length
+      ? `${currentItems.length} file(s) kept in ${data.folder}`
+      : `PDFs you create will be kept in ${data.folder}`;
+    renderLibrary(currentItems);
+  } catch (error) {
+    list.innerHTML = `<div class="err"><b>Could not read the library.</b><br>${esc(error.message)}</div>`;
+  }
+}
+
+async function refreshRecent(){
+  const box = $('recent');
+  try {
+    const data = await api('/api/library');
+    const items = (data.items || []).slice(0, 3);
+    if (!items.length){
+      box.innerHTML = '<p class="hint" style="margin:0">Nothing yet. Your first PDF will appear here.</p>';
+      return;
+    }
+    box.innerHTML = '';
+    for (const item of items){
+      const row = document.createElement('button');
+      row.type = 'button';
+      row.className = 'tile';
+      row.style.marginTop = '8px';
+      row.innerHTML =
+        `<span class="ico"><svg aria-hidden="true"><use href="#i-pdf"/></svg></span>
+         <span><b>${esc(item.filename || 'notes.pdf')}</b>
+         <span>${item.page_count} page(s) · ${fmtBytes(item.byte_size)} · ${esc(fmtDate(item.updated))}</span></span>
+         <span class="chev" aria-hidden="true"><svg width="18" height="18"><use href="#i-right"/></svg></span>`;
+      row.onclick = () => openSaved(item, 'download');
+      box.appendChild(row);
+    }
+  } catch (_) {
+    box.innerHTML = '<p class="hint" style="margin:0">The Library is not available right now.</p>';
+  }
+}
+
+// ── the guide on Home can be dismissed, and brought back from Settings ─────
+function guideHidden(){
+  try { return localStorage.getItem('pagesnap-guide') === 'hidden'; } catch (_) { return false; }
+}
+function applyGuide(){
+  const hidden = guideHidden();
+  $('guide').style.display = hidden ? 'none' : 'block';
+  $('guide-state').textContent = hidden
+    ? 'The guide is hidden on Home.' : 'The three-step guide is shown on Home.';
+  $('guide-toggle').textContent = hidden ? 'Show it again' : 'Hide it';
+}
+$('dismiss-guide').onclick = () => {
+  try { localStorage.setItem('pagesnap-guide', 'hidden'); } catch (_) {}
+  applyGuide();
+  toast('Guide hidden — you can bring it back in Settings.');
+};
+$('guide-toggle').onclick = () => {
+  let hidden = guideHidden();
+  try { localStorage.setItem('pagesnap-guide', hidden ? 'shown' : 'hidden'); } catch (_) {}
+  applyGuide();
+};
+
+// ── greeting, based on the clock rather than on invented usage data ────────
+function refreshGreeting(){
+  const hour = new Date().getHours();
+  const part = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
+  $('greeting').textContent = `${part} 👋`;
+}
+
+// ── export: only what the implementation really knows ──────────────────────
+function renderExport(){
+  const kept = (state && state.selected_count) || 0;
+  const format = $('fmt').value === 'png' ? 'Lossless PNG' : 'Sharp JPEG';
+  const sensitivity = {strict:'Strict', balanced:'Balanced', eager:'Eager'}[$('sens').value]
+                      || 'Balanced';
+  $('export-options').innerHTML =
+    `<span><b>${kept}</b> page(s) selected</span>` +
+    `<span>Pictures: <b>${format}</b></span>` +
+    `<span>Detection: <b>${sensitivity}</b></span>` +
+    `<span>Page size: <b>A4</b></span>`;
+  updateFilename();
+}
+
+// ── the processing screen shows only figures that exist ────────────────────
+function renderProgressExtras(){
+  const stats = [];
+  if (state.source) stats.push(['Source', state.source.length > 34
+    ? state.source.slice(0, 31) + '…' : state.source]);
+  if (state.duration) stats.push(['Video length', `${state.duration}s`]);
+  if (state.status === 'analysing') stats.push(['Detector', 'balanced preset' in {} ? '' : 'watching for settled pages']);
+  $('proc-stats').innerHTML = stats.filter(s => s[1]).map(([label, value]) =>
+    `<span class="stat"><span>${esc(label)}</span><b>${esc(value)}</b></span>`).join('');
+
+  const pct = Math.round((state.fraction || 0) * 100);
+  // A real percentage when the server has one; an honest indeterminate bar when it
+  // does not. The engine reports genuine per-stage progress, so this is real data.
+  const indeterminate = !pct || state.status === 'queued';
+  $('bar').classList.toggle('indet', indeterminate);
+  const note = $('proc-note');
+  if (state.status === 'downloading'){
+    note.textContent = 'The video is being fetched before any of it is read.';
+  } else if (state.status === 'analysing'){
+    note.textContent = 'Reading frames and photographing each page once it has settled.';
+  } else if (state.status === 'ready'){
+    note.textContent = 'Done — opening the pages for review.';
+  } else if (state.status === 'failed'){
+    note.textContent = '';
+  } else {
+    note.textContent = 'Waiting for the server to start.';
+  }
+}
+
+// ── settings that reflect the real implementation ──────────────────────────
+fetch('/api/sources').then(r => r.json()).then(info => {
+  const formats = (info.file && info.file.formats) || [];
+  $('settings-formats').innerHTML =
+    `<span>Video files: <b>${formats.map(esc).join(', ')}</b></span>` +
+    `<span>PDF pages: <b>A4</b></span>`;
+  $('settings-links').innerHTML =
+    `<p class="hint" style="margin-top:0"><b>Links.</b> ` +
+    `A link that points straight at a video file, or a public page the downloader can ` +
+    `read, is fetched from the internet. ${esc((info.link.often_needs_login || []).join(', '))} ` +
+    `usually ask for a login, and PageSnap will say so rather than pretend — a local file ` +
+    `always works instead. Never supported: ${esc((info.link.never || []).join('; '))}.</p>`;
+}).catch(() => { $('settings-formats').textContent = 'Could not read the supported formats.'; });
+
+$('about-version').textContent = 'Server: ' + location.hostname + ':' + location.port;
+
+// ── boot ────────────────────────────────────────────────────────────────────
+function boot(){
+  refreshGreeting();
+  applyGuide();
+  applyTheme(currentStoredTheme(), false);
+  show('home');
+  refreshRecent();
+  refreshLibrary();
+}
+boot();
+
+</script>
+</body>
+</html>

@@ -1,0 +1,20 @@
+# PageSnap prototype - the browser UI, the server behind it, and the detection
+# engine it drives.
+#
+#   pip install -r requirements.txt
+#   python prototype/server.py            ->  http://localhost:4567
+#
+# Nothing here needs a compiler, and no ffmpeg has to be installed: imageio-ffmpeg
+# brings its own.
+
+fastapi>=0.110
+uvicorn[standard]>=0.27
+python-multipart>=0.0.9          # form and file uploads
+
+reportlab>=4.0                   # writes the PDF
+Pillow>=10.0                     # images and thumbnails
+numpy>=1.24                      # the page detector
+imageio-ffmpeg>=0.4.9            # ships an ffmpeg binary, so you do not install one
+
+yt-dlp>=2024.1.1                 # imports links (optional: local files always work)
+pypdf>=4.0                       # reads the PDF back to check it really is one

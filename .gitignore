@@ -1,0 +1,21 @@
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Generated test media: rebuild with `python tests/make_fixtures.py` (~45s)
+engine/tests/fixtures/
+engine/tests/debug_*.png
+
+# Local output
+*.pdf
+!examples/*.pdf
+prototype/static/*.local.*
+
+# Test tooling and logs
+node_modules/
+prototype/tests/.server.log
+prototype/tests/.ui-server.log
+
+# GitHub Pages build output (assembled in CI, uploaded as an artifact)
+_site/
