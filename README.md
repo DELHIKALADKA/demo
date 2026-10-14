@@ -25,8 +25,9 @@ operator.**
 | folder | what it is | state |
 |---|---|---|
 | `engine/` | the detection engine + PDF writer + CLI, in Python | **tested**, 15/15 fixture combinations pass |
-| `prototype/` | a browser UI over that engine — the whole flow, usable right now | working |
-| `android/` | the phone app (Kotlin, Jetpack Compose) | engine ported; needs a first compile |
+| `prototype/` | a *server-backed* browser UI over that engine — the whole flow, including link downloads | working |
+| `docs/` | the **shareable web app**: no server at all, runs on the visitor's device | live if Pages is on |
+| `android/` | the phone app (Kotlin, Jetpack Compose) | sources kept; not being built |
 
 ### Try it in one minute
 
@@ -40,6 +41,19 @@ python -m pagesnap.cli tests/fixtures/lecture.mp4 -o notes.pdf --explain
 cd prototype
 pip install fastapi "uvicorn[standard]" python-multipart yt-dlp
 python server.py --port 8000          # then open http://localhost:8000
+```
+
+### Host it as a public link
+
+`docs/` is a complete, self-contained web app: no backend, no database, no build
+step. Any static host will serve it — GitHub Pages (Settings → Pages → branch +
+`/docs`), Netlify Drop, Cloudflare Pages, or a college server. Because the page
+does all the work locally, hosting costs nothing and scales to any number of
+students.
+
+```bash
+python3 docs/serve.py --port 5173      # or run it locally
+node docs/test/run.mjs                 # the browser engine, checked against the same fixtures
 ```
 
 ## Why "find the page changes" is harder than it sounds

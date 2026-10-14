@@ -1,0 +1,11 @@
+{
+  "name": "pagesnap-web",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "The browser build of PageSnap: find the pages in a video and write a PDF, all on the visitor's own device.",
+  "scripts": {
+    "test": "node test/run.mjs",
+    "serve": "python3 serve.py"
+  }
+}

@@ -9,5 +9,5 @@ engine/tests/debug_*.png
 
 # Local output
 *.pdf
-!docs/**/*.pdf
+!examples/*.pdf
 prototype/static/*.local.*
