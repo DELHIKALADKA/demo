@@ -11,3 +11,8 @@ engine/tests/debug_*.png
 *.pdf
 !examples/*.pdf
 prototype/static/*.local.*
+
+# Test tooling and logs
+node_modules/
+prototype/tests/.server.log
+prototype/tests/.ui-server.log

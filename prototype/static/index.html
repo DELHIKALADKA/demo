@@ -31,6 +31,8 @@
   .drop.hot{border-color:var(--accent);background:#241a19}
   .drop b{font-size:16px;display:block;margin-bottom:4px}
   .drop span{color:var(--dim);font-size:13px}
+  .or{display:flex;align-items:center;gap:10px;color:var(--dim);font-size:12.5px;margin:16px 0 10px}
+  .or::before,.or::after{content:"";height:1px;background:var(--line);flex:1}
   .btn{
     appearance:none;border:0;border-radius:11px;padding:12px 18px;font-size:15px;font-weight:600;
     background:var(--accent);color:#fff;cursor:pointer;transition:.15s;font-family:inherit
@@ -40,14 +42,16 @@
   .btn.ghost{background:var(--panel2);color:var(--ink);border:1px solid var(--line)}
   .btn.ghost:hover{background:#252a35}
   .btn.big{width:100%;padding:15px;font-size:16px}
+  .btn.mini{padding:5px 9px;font-size:13px;border-radius:8px;line-height:1}
   .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
   .row.tight{gap:8px}
   label.field{display:block;font-size:12.5px;color:var(--dim);margin:0 0 6px;text-transform:uppercase;letter-spacing:.6px}
-  input[type=text],select{
+  input[type=text],input[type=number],select{
     width:100%;background:#12151b;border:1px solid var(--line);color:var(--ink);
     border-radius:10px;padding:11px 12px;font-size:15px;font-family:inherit
   }
-  input[type=text]:focus,select:focus{outline:2px solid rgba(224,83,63,.4);border-color:var(--accent)}
+  input[type=text]:focus,input[type=number]:focus,select:focus{
+    outline:2px solid rgba(224,83,63,.4);border-color:var(--accent)}
   .grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
   @media(max-width:560px){.grid2{grid-template-columns:1fr}}
   .hint{color:var(--dim);font-size:12.5px;margin-top:8px}
@@ -55,23 +59,46 @@
   .bar>i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--accent),var(--accent2));transition:width .35s}
   .stage{font-size:13.5px;color:var(--dim)}
   .stage b{color:var(--ink)}
-  .pages{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px;margin-top:14px}
+  .pages{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:12px;margin-top:14px}
   .page{background:var(--panel2);border:1px solid var(--line);border-radius:12px;overflow:hidden;position:relative}
-  .page img{display:block;width:100%;background:#222}
-  .page.off{opacity:.4}
-  .page .meta{display:flex;justify-content:space-between;align-items:center;padding:8px 9px;font-size:12px;color:var(--dim);gap:6px}
-  .page .tag{background:#12151b;border-radius:6px;padding:2px 6px}
+  .page img{display:block;width:100%;background:#222;cursor:zoom-in}
+  .page.off{opacity:.45}
+  .page.off img{filter:grayscale(.75)}
+  .page .meta{display:flex;justify-content:space-between;align-items:center;padding:7px 9px;font-size:12px;color:var(--dim);gap:6px}
+  .page .tag{background:#12151b;border-radius:6px;padding:2px 6px;white-space:nowrap}
+  .page .tag.manual{background:#2b2416;color:#f0b429}
+  .page .actions{display:flex;gap:4px;padding:0 8px 8px}
+  .page .actions .btn{flex:1}
   .tick{position:absolute;top:8px;left:8px;width:24px;height:24px;border-radius:7px;background:rgba(10,12,16,.72);
-        border:1px solid #454c5c;display:grid;place-items:center;cursor:pointer;font-size:14px}
+        border:1px solid #454c5c;display:grid;place-items:center;cursor:pointer;font-size:14px;z-index:2}
   .tick.on{background:var(--good);border-color:var(--good);color:#06231a}
+  .pos{position:absolute;top:8px;right:8px;background:rgba(10,12,16,.72);border:1px solid #454c5c;
+       border-radius:7px;padding:3px 7px;font-size:12px;z-index:2}
   .err{background:#2a1618;border:1px solid #5c2a2c;color:#ffb4ac;border-radius:11px;padding:12px 14px;font-size:14px;margin-top:12px}
-  .ok{color:var(--good)}
+  .err b{color:#ffd9d4}
+  .ok{background:#14251d;border:1px solid #24503a;color:#b8f0d2;border-radius:11px;padding:12px 14px;font-size:14px;margin-top:12px}
+  .banner{background:#2a2314;border:1px solid #5c4a1f;color:#ffe1a3;border-radius:11px;padding:11px 14px;
+          font-size:13.5px;margin-top:12px;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+  .url-state{font-size:13px;margin-top:9px;min-height:18px}
+  .url-state.bad{color:#ffb4ac}
+  .url-state.good{color:var(--good)}
+  .url-state.busy{color:var(--dim)}
+  .pdf-panel{margin-top:14px;border:1px solid var(--line);border-radius:12px;padding:14px;background:var(--panel2)}
+  .kv{display:flex;gap:16px;flex-wrap:wrap;font-size:13px;color:var(--dim);margin-top:6px}
+  .kv b{color:var(--ink);font-weight:600}
   .foot{color:var(--dim);font-size:12.5px;text-align:center;margin-top:26px;line-height:1.7}
   .pill{display:inline-block;background:var(--panel2);border:1px solid var(--line);border-radius:99px;padding:3px 10px;font-size:12px;color:var(--dim)}
   .lightbox{position:fixed;inset:0;background:rgba(6,8,11,.93);display:none;place-items:center;padding:18px;z-index:50}
   .lightbox.on{display:grid}
   .lightbox img{max-width:100%;max-height:88vh;border-radius:10px;box-shadow:0 20px 60px rgba(0,0,0,.6)}
-  .lightbox .close{position:absolute;top:16px;right:20px;font-size:26px;color:#fff;cursor:pointer;opacity:.8}
+  .lightbox iframe{width:min(920px,100%);height:88vh;border:0;border-radius:10px;background:#fff}
+  .lightbox .close{position:absolute;top:14px;right:20px;font-size:30px;color:#fff;cursor:pointer;opacity:.85;line-height:1}
+  .spin{display:inline-block;width:13px;height:13px;border:2px solid rgba(255,255,255,.35);
+        border-top-color:#fff;border-radius:50%;animation:sp .8s linear infinite;vertical-align:-2px;margin-right:7px}
+  @keyframes sp{to{transform:rotate(360deg)}}
+  details summary{cursor:pointer;color:var(--dim);font-size:13.5px}
+  .src-list{font-size:13px;color:var(--dim);margin:10px 0 0;padding-left:18px}
+  .src-list li{margin:3px 0}
 </style>
 </head>
 <body>
@@ -82,7 +109,7 @@
   </header>
   <p class="sub">Turn a video of notes into a clean PDF — one screenshot per page, nothing else.</p>
 
-  <!-- 1. input ------------------------------------------------------------ -->
+  <!-- 1 ─ source ------------------------------------------------------------ -->
   <section class="card" id="step-input">
     <div class="drop" id="drop">
       <b>Choose a video from this device</b>
@@ -90,17 +117,23 @@
       <input type="file" id="file" accept="video/*" hidden>
     </div>
 
-    <div class="row" style="margin-top:14px">
-      <input type="text" id="link" placeholder="…or paste an Instagram / Facebook / YouTube link">
-      <button class="btn ghost" id="fetch" style="white-space:nowrap">Fetch link</button>
+    <div class="or">or import a link</div>
+    <div class="row">
+      <input type="text" id="link" placeholder="https://…  a direct video file, or a public page"
+             style="flex:1;min-width:220px">
+      <button class="btn ghost" id="import" style="white-space:nowrap">Import link</button>
     </div>
-    <div class="hint">
-      Links only work in this computer version (it downloads with yt-dlp). A browser alone can never do
-      that — which is why the phone app is a real app.
-    </div>
+    <div class="url-state" id="url-state"></div>
 
-    <details style="margin-top:16px">
-      <summary style="cursor:pointer;color:var(--dim);font-size:13.5px">Options</summary>
+    <details style="margin-top:14px">
+      <summary>Which links work, and which never will</summary>
+      <ul class="src-list" id="src-list">
+        <li>Loading…</li>
+      </ul>
+    </details>
+
+    <details style="margin-top:12px">
+      <summary>Options</summary>
       <div class="grid2" style="margin-top:14px">
         <div>
           <label class="field" for="sens">How eager should it be?</label>
@@ -121,14 +154,14 @@
     </details>
   </section>
 
-  <!-- 2. progress --------------------------------------------------------- -->
+  <!-- 2 ─ progress ---------------------------------------------------------- -->
   <section class="card" id="step-progress" style="display:none">
     <div class="stage" id="stage"><b>Working…</b></div>
     <div class="bar"><i id="barfill"></i></div>
     <div class="stage" id="stage2"></div>
   </section>
 
-  <!-- 3. results ---------------------------------------------------------- -->
+  <!-- 3 ─ review + export --------------------------------------------------- -->
   <section class="card" id="step-result" style="display:none">
     <div class="row" style="justify-content:space-between;align-items:flex-end">
       <div>
@@ -136,20 +169,49 @@
         <div class="stage" id="summary2"></div>
       </div>
       <div class="row tight">
-        <button class="btn ghost" id="all">Keep all</button>
-        <button class="btn ghost" id="none">Keep none</button>
+        <button class="btn ghost mini" id="all">Keep all</button>
+        <button class="btn ghost mini" id="none">Remove all</button>
+        <button class="btn ghost mini" id="restore">Restore removed</button>
+        <button class="btn ghost mini" id="preview-sheet">Preview selected</button>
       </div>
     </div>
 
     <div class="pages" id="pages"></div>
 
+    <div style="margin-top:16px">
+      <label class="field" for="capture-time">Add another page from the video</label>
+      <div class="row">
+        <input type="number" id="capture-time" min="0" step="0.1" placeholder="seconds, e.g. 42.5"
+               style="flex:1;min-width:150px">
+        <button class="btn ghost" id="capture">Capture that moment</button>
+      </div>
+      <div class="hint" id="capture-hint">Useful when the detector missed a page — grab it by hand.</div>
+    </div>
+
     <div style="margin-top:18px">
-      <label class="field" for="title">Name these notes</label>
+      <label class="field" for="title">Name the PDF</label>
       <input type="text" id="title" placeholder="e.g. Biology Chapter 6 — Life Processes">
       <div class="hint" id="filename">will be saved as notes.pdf</div>
     </div>
 
-    <button class="btn big" id="download" style="margin-top:16px">Download the PDF</button>
+    <button class="btn big" id="generate" style="margin-top:16px">Generate PDF</button>
+
+    <div class="pdf-panel" id="pdf-panel" style="display:none">
+      <div class="stage" id="pdf-line"><b>PDF</b></div>
+      <div class="kv" id="pdf-meta"></div>
+      <div class="row" style="margin-top:12px">
+        <button class="btn" id="download">Download PDF</button>
+        <button class="btn ghost" id="preview-pdf">Preview PDF</button>
+      </div>
+    </div>
+
+    <div class="banner" id="stale" style="display:none">
+      <span>The page list changed after this PDF was made. Generate it again so the
+        download matches what you see.</span>
+      <button class="btn ghost mini" id="regen-banner">Regenerate PDF</button>
+    </div>
+
+    <div class="err" id="pdf-error" style="display:none"></div>
     <div class="hint" id="privacy">Everything ran on this device. Nothing was uploaded anywhere.</div>
   </section>
 
@@ -161,20 +223,107 @@
   </p>
 </div>
 
-<div class="lightbox" id="lightbox"><span class="close">×</span><img id="lightbox-img" alt=""></div>
+<div class="lightbox" id="lightbox"><span class="close">×</span><div id="lightbox-body"></div></div>
 
 <script>
 const $ = id => document.getElementById(id);
-let jobId = null, poll = null, state = null;
+let jobId = null, poll = null, state = null, busy = false;
 
+// ── tiny helpers ────────────────────────────────────────────────────────────
 function show(step){
   $('step-input').style.display    = step === 'input'    ? '' : 'none';
   $('step-progress').style.display = step === 'progress' ? '' : 'none';
   $('step-result').style.display   = step === 'result'   ? '' : 'none';
 }
-function fail(msg){ $('err').style.display = 'block'; $('err').textContent = msg; }
+function fail(msg){
+  $('err').style.display = 'block';
+  $('err').innerHTML = msg;
+}
 function clearErr(){ $('err').style.display = 'none'; }
+function esc(s){ return String(s == null ? '' : s).replace(/[&<>"']/g,
+  c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function fmtBytes(n){
+  if (!n) return '—';
+  return n > 1048576 ? (n/1048576).toFixed(2) + ' MB' : Math.round(n/1024) + ' KB';
+}
+function openLightbox(node){
+  const body = $('lightbox-body');
+  body.innerHTML = '';
+  body.appendChild(node);
+  $('lightbox').classList.add('on');
+}
+function closeLightbox(){
+  const url = $('lightbox').dataset.objectUrl;
+  if (url){ URL.revokeObjectURL(url); delete $('lightbox').dataset.objectUrl; }
+  $('lightbox').classList.remove('on');
+  $('lightbox-body').innerHTML = '';
+}
 
+// One place that talks to the server, so every failure is reported the same way
+// and never silently swallowed.
+async function api(path, options){
+  let response;
+  try {
+    response = await fetch(path, options);
+  } catch (networkError) {
+    throw new Error('The PageSnap server is not reachable. Is it still running?');
+  }
+  const type = response.headers.get('content-type') || '';
+  let payload = null;
+  if (type.includes('application/json')) {
+    try { payload = await response.json(); } catch (_) { payload = null; }
+  }
+  if (!response.ok) {
+    let detail = payload && (payload.detail || payload.error || payload.message);
+    if (Array.isArray(detail)) {                 // FastAPI's validation envelope
+      detail = detail.map(d => d && (d.msg || JSON.stringify(d))).join('; ');
+    }
+    const advice = payload && payload.advice;
+    const kind = payload && payload.kind;
+    const error = new Error(typeof detail === 'string' ? detail : `Request failed (${response.status})`);
+    error.kind = kind; error.advice = advice; error.status = response.status;
+    throw error;
+  }
+  return payload;
+}
+
+function showSourceError(error){
+  const bits = [`<b>${esc(error.message)}</b>`];
+  if (error.advice) bits.push(esc(error.advice));
+  // Whatever went wrong with a link, uploading a file is the way through - so say
+  // so every time, not only for the platforms that ask for a login.
+  bits.push('You can always <b>choose a video from this device</b> instead — that never '
+            + 'depends on a site letting us in.');
+  fail(bits.join('<br>'));
+}
+
+// ── source: link ────────────────────────────────────────────────────────────
+function urlState(text, kind){
+  const el = $('url-state');
+  el.className = 'url-state' + (kind ? ' ' + kind : '');
+  el.innerHTML = text;
+}
+
+$('import').onclick = async () => {
+  clearErr();
+  const url = $('link').value.trim();
+  if (!url) { urlState('Paste a link first.', 'bad'); return; }
+  $('import').disabled = true;
+  urlState('<span class="spin"></span>Checking the link…', 'busy');
+  try {
+    const started = await api('/api/fetch', {method:'POST', body: form({url})});
+    jobId = started.id;
+    urlState('<span class="spin"></span>Importing…', 'busy');
+    show('progress');
+    startPolling();
+  } catch (error) {
+    urlState('✕ ' + esc(error.message), 'bad');
+    showSourceError(error);
+    $('import').disabled = false;
+  }
+};
+
+// ── source: file ────────────────────────────────────────────────────────────
 function form(extra){
   const f = new FormData();
   f.append('sensitivity', $('sens').value);
@@ -186,124 +335,391 @@ function form(extra){
   return f;
 }
 
-async function start(response){
-  const data = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(data.detail || 'could not start');
-  jobId = data.id;
-  show('progress');
-  poll = setInterval(check, 700);
-  check();
-}
-
-async function check(){
-  if (!jobId) return;
-  let r;
-  try { r = await fetch(`/api/jobs/${jobId}`); } catch(e){ return; }
-  if (!r.ok) return;
-  state = await r.json();
-  $('stage').innerHTML = '<b>' + state.stage + '…</b>';
-  $('barfill').style.width = Math.round((state.fraction || 0) * 100) + '%';
-  $('stage2').textContent = state.status === 'ready'
-      ? `${state.pages.length} page(s) found in ${state.duration}s of video`
-      : `analysing ${state.duration ? state.duration + 's of video' : 'the video'}…`;
-
-  if (state.status === 'failed'){ clearInterval(poll); show('input'); fail(state.error); }
-  if (state.status === 'ready'){ clearInterval(poll); render(); show('result'); }
-}
-
-async function render(){
-  const grid = $('pages');
-  grid.innerHTML = '';
-  let index = 0;
-  for (const p of state.pages){
-    const i = index++;
-    const el = document.createElement('div');
-    el.className = 'page' + (p.keep ? '' : ' off');
-    el.innerHTML = `
-      <span class="tick ${p.keep ? 'on' : ''}" data-i="${i}">${p.keep ? '✓' : ''}</span>
-      <img src="${p.thumbnail}" alt="page ${i+1}" data-i="${i}">
-      <div class="meta"><span class="tag">#${i+1}</span><span>${p.time.toFixed(1)}s</span></div>`;
-    grid.appendChild(el);
-  }
-  grid.querySelectorAll('.tick').forEach(t => t.onclick = () => toggle(+t.dataset.i));
-  grid.querySelectorAll('img').forEach(img => img.onclick = () => {
-    $('lightbox-img').src = img.src; $('lightbox').classList.add('on');
-  });
-  const kept = state.pages.filter(p => p.keep).length;
-  $('summary').innerHTML = `<b>${state.pages.length} page(s) found</b>`;
-  $('summary2').textContent = `${kept} selected · ${state.duration}s of video analysed in ${state.analyzed_seconds}s`;
-  $('title').value = state.title || $('title').value;
-  updateName();
-}
-
-function updateName(){
-  const raw = $('title').value.trim();
-  const safe = (raw || 'notes').replace(/[^\w \-_().\[\]]+/g, '').trim() || 'notes';
-  $('filename').textContent = 'will be saved as ' + (/\.pdf$/i.test(safe) ? safe : safe + '.pdf');
-}
-
-async function toggle(i){
-  const keep = state.pages.map(p => p.keep);
-  keep[i] = !keep[i];
-  const r = await fetch(`/api/jobs/${jobId}/selection`, {
-    method: 'POST', headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({keep})
-  });
-  state = await r.json();
-  render();
-}
-
-async function setAll(value){
-  const keep = state.pages.map(() => value);
-  const r = await fetch(`/api/jobs/${jobId}/selection`, {
-    method: 'POST', headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({keep})
-  });
-  state = await r.json();
-  render();
-}
-
-// --- wiring ---------------------------------------------------------------- //
-$('drop').onclick = () => $('file').click();
-$('file').onchange = async e => {
+async function sendVideo(file){
   clearErr();
-  const f = e.target.files[0];
-  if (!f) return;
-  const fd = form({}); fd.append('video', f);
-  try { await start(await fetch('/api/upload', {method:'POST', body: fd})); }
-  catch(err){ fail(err.message); }
-};
+  if (!file) return;
+  $('import').disabled = true;
+  show('progress');
+  $('stage').innerHTML = '<b>Uploading the video…</b>';
+  try {
+    const started = await api('/api/upload', {method:'POST', body: (() => {
+      const f = form({}); f.append('video', file); return f;
+    })()});
+    jobId = started.id;
+    if (started.title && !$('title').value) $('title').value = started.title;
+    startPolling();
+  } catch (error) {
+    $('import').disabled = false;
+    show('input');
+    showSourceError(error);
+  }
+}
+
+$('drop').onclick = () => $('file').click();
+$('file').onchange = e => sendVideo(e.target.files[0]);
 ['dragenter','dragover'].forEach(ev => $('drop').addEventListener(ev, e => {
   e.preventDefault(); $('drop').classList.add('hot');
 }));
 ['dragleave','drop'].forEach(ev => $('drop').addEventListener(ev, e => {
   e.preventDefault(); $('drop').classList.remove('hot');
 }));
-$('drop').addEventListener('drop', async e => {
-  const f = e.dataTransfer.files[0];
-  if (!f) return;
-  const fd = form({}); fd.append('video', f);
-  try { await start(await fetch('/api/upload', {method:'POST', body: fd})); }
-  catch(err){ fail(err.message); }
+$('drop').addEventListener('drop', e => sendVideo(e.dataTransfer.files[0]));
+
+// ── polling ─────────────────────────────────────────────────────────────────
+function startPolling(){
+  if (poll) clearInterval(poll);
+  poll = setInterval(check, 600);
+  check();
+}
+
+async function check(){
+  if (!jobId) return;
+  let data;
+  try { data = await api(`/api/jobs/${jobId}`); } catch (_) { return; }
+  state = data;
+
+  $('stage').innerHTML = '<b>' + esc(state.stage || state.status) + '…</b>';
+  $('barfill').style.width = Math.round((state.fraction || 0) * 100) + '%';
+
+  if (state.status === 'downloading'){
+    const pct = Math.round((state.download_fraction || 0) * 100);
+    $('stage2').textContent = `${state.download_stage || 'downloading'}${pct ? ' · ' + pct + '%' : ''}`;
+    $('stage').innerHTML = '<b>Importing the link…</b>';
+  } else if (state.status === 'analysing' || state.status === 'queued'){
+    $('stage2').textContent = state.duration
+      ? `analysing ${state.duration}s of video…`
+      : 'analysing the video…';
+  } else if (state.status === 'ready'){
+    $('stage2').textContent = `${state.pages.length} page(s) found`;
+  }
+
+  if (state.status === 'failed'){
+    clearInterval(poll); poll = null;
+    $('import').disabled = false;
+    if (state.source_kind === 'link') urlState('✕ ' + esc(state.error), 'bad');
+    renderFailure();
+    return;
+  }
+  if (state.status === 'ready'){
+    clearInterval(poll); poll = null;
+    $('import').disabled = false;
+    if (state.source_kind === 'link'){
+      urlState(`✓ Imported. ${state.pages.length} page(s) found in ${state.duration}s of video.`,
+               'good');
+    }
+    render();
+    show('result');
+  }
+}
+
+function renderFailure(){
+  show('input');
+  const bits = [`<b>${esc(state.error || 'That video could not be processed.')}</b>`];
+  if (state.error_advice) bits.push(esc(state.error_advice));
+  bits.push('<br>Want to try again with a different setting? ' +
+            '<button class="btn ghost mini" id="retry-eager" style="margin-top:8px">Retry with Eager</button> ' +
+            '<button class="btn ghost mini" id="retry-balanced" style="margin-top:8px">Retry with Balanced</button>');
+  fail(bits.join('<br>'));
+  const eager = $('retry-eager'), balanced = $('retry-balanced');
+  if (eager) eager.onclick = () => retry('eager');
+  if (balanced) balanced.onclick = () => retry('balanced');
+}
+
+async function retry(sensitivity){
+  if (!jobId) return;
+  clearErr();
+  show('progress');
+  $('stage').innerHTML = '<b>Analysing again…</b>';
+  try {
+    state = await api(`/api/jobs/${jobId}/reanalyse`, {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({sensitivity})
+    });
+    startPolling();
+  } catch (error) {
+    show('input'); showSourceError(error);
+  }
+}
+
+// ── the review grid ─────────────────────────────────────────────────────────
+function render(){
+  const grid = $('pages');
+  grid.innerHTML = '';
+  for (const p of state.pages){
+    const el = document.createElement('div');
+    el.className = 'page' + (p.removed ? ' off' : '');
+    el.dataset.uid = p.uid;
+    el.innerHTML = `
+      <span class="tick ${p.removed ? '' : 'on'}">${p.removed ? '' : '✓'}</span>
+      <span class="pos">#${p.position}</span>
+      <img src="${p.thumbnail}" alt="page ${p.position}" loading="lazy">
+      <div class="meta">
+        <span class="tag ${p.manual ? 'manual' : ''}">${p.manual ? 'manual' : 'auto'} · ${p.time.toFixed(1)}s</span>
+      </div>
+      <div class="actions">
+        <button class="btn ghost mini" data-act="left" title="Move earlier">◀</button>
+        <button class="btn ghost mini" data-act="remove" title="${p.removed ? 'Put this page back' : 'Remove this page'}">${p.removed ? '↺' : '✕'}</button>
+        <button class="btn ghost mini" data-act="right" title="Move later">▶</button>
+      </div>`;
+    grid.appendChild(el);
+  }
+
+  grid.querySelectorAll('.page').forEach(card => {
+    const uid = card.dataset.uid;
+    card.querySelector('.tick').onclick = () => toggleRemoved(uid);
+    card.querySelector('img').onclick = () => {
+      const img = new Image();
+      img.src = `/api/jobs/${jobId}/page/${uid}`;
+      img.alt = 'full size page';
+      openLightbox(img);
+    };
+    card.querySelectorAll('button[data-act]').forEach(btn => {
+      btn.onclick = () => {
+        const act = btn.dataset.act;
+        if (act === 'remove') return toggleRemoved(uid);
+        if (act === 'left') return move(uid, -1);
+        if (act === 'right') return move(uid, +1);
+      };
+    });
+  });
+
+  const kept = state.selected_count;
+  $('summary').innerHTML = `<b>${state.pages.length} page(s) found</b>`;
+  $('summary2').textContent =
+    `${kept} selected · ${state.removed_count} removed · ${state.duration}s of video` +
+    (state.source_kind === 'link' ? ' · imported from a link' : '');
+  if (!$('title').value) $('title').value = state.title || '';
+  updateFilename();
+  renderPdfPanel();
+}
+
+function updateFilename(){
+  const raw = $('title').value.trim();
+  const safe = (raw || 'notes').replace(/[^\w \-_().\[\]]+/g, '').trim() || 'notes';
+  $('filename').textContent = 'will be saved as ' + (/\.pdf$/i.test(safe) ? safe : safe + '.pdf');
+}
+
+async function pushEdits(body){
+  if (busy) return;
+  busy = true;
+  try {
+    state = await api(`/api/jobs/${jobId}/pages`, {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify(body)
+    });
+    render();
+  } catch (error) {
+    showSourceError(error);
+  } finally { busy = false; }
+}
+
+function currentOrder(){ return state.pages.map(p => p.uid); }
+function currentRemoved(){ return state.pages.filter(p => p.removed).map(p => p.uid); }
+
+function toggleRemoved(uid){
+  const removed = new Set(currentRemoved());
+  removed.has(uid) ? removed.delete(uid) : removed.add(uid);
+  pushEdits({order: currentOrder(), removed: [...removed]});
+}
+
+function move(uid, delta){
+  const order = currentOrder();
+  const from = order.indexOf(uid);
+  const to = from + delta;
+  if (from < 0 || to < 0 || to >= order.length) return;
+  [order[from], order[to]] = [order[to], order[from]];
+  pushEdits({order, removed: currentRemoved()});
+}
+
+$('all').onclick     = () => pushEdits({order: currentOrder(), removed: []});
+$('none').onclick    = () => pushEdits({order: currentOrder(), removed: currentOrder()});
+$('restore').onclick = () => pushEdits({order: currentOrder(), removed: []});
+$('title').oninput   = updateFilename;
+$('title').onchange  = () => pushEdits({order: currentOrder(), removed: currentRemoved(),
+                                        title: $('title').value});
+
+$('preview-sheet').onclick = async () => {
+  clearErr();
+  try {
+    const response = await fetch(`/api/jobs/${jobId}/sheet`);
+    if (!response.ok) throw new Error((await response.json().catch(() => ({}))).detail
+                                      || 'Could not draw the preview.');
+    const url = URL.createObjectURL(await response.blob());
+    const img = new Image();
+    img.onload = () => URL.revokeObjectURL(url);
+    img.src = url;
+    img.alt = 'the pages that will be exported';
+    openLightbox(img);
+  } catch (error) { showSourceError(error); }
+};
+
+// ── manual capture ──────────────────────────────────────────────────────────
+$('capture').onclick = async () => {
+  clearErr();
+  const raw = $('capture-time').value;
+  if (raw === '' || isNaN(parseFloat(raw))){
+    $('capture-hint').innerHTML = '<span style="color:#ffb4ac">Give a time in seconds, e.g. 42.5</span>';
+    return;
+  }
+  $('capture').disabled = true;
+  try {
+    const result = await api(`/api/jobs/${jobId}/capture`, {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({time: parseFloat(raw)})
+    });
+    state = result.job;
+    render();
+    $('capture-hint').innerHTML = `Added the moment at ${parseFloat(raw).toFixed(1)}s as the last page.`;
+    $('capture-time').value = '';
+    if (!state.can_capture) $('capture').disabled = true;
+  } catch (error) {
+    $('capture-hint').innerHTML = `<span style="color:#ffb4ac">${esc(error.message)}</span>`;
+  } finally { $('capture').disabled = false; }
+};
+
+// ── generate / preview / download ───────────────────────────────────────────
+function pdfLine(text, spinning){
+  $('pdf-line').innerHTML = (spinning ? '<span class="spin"></span>' : '') + text;
+}
+
+function renderPdfPanel(){
+  const pdf = (state && state.pdf) || {};
+  const panel = $('pdf-panel');
+  const stale = $('stale');
+  const err = $('pdf-error');
+
+  if (pdf.status === 'generating'){
+    panel.style.display = 'block';
+    pdfLine(esc(pdf.stage || 'generating') + '…', true);
+    $('pdf-meta').innerHTML = '';
+    $('download').disabled = true;
+    $('preview-pdf').disabled = true;
+  } else if (pdf.status === 'ready'){
+    panel.style.display = 'block';
+    pdfLine(`<b>${esc(pdf.filename)}</b> is ready`, false);
+    $('pdf-meta').innerHTML =
+      `<span><b>${pdf.page_count}</b> page(s)</span>` +
+      `<span><b>${fmtBytes(pdf.byte_size)}</b></span>` +
+      `<span>${pdf.verified ? '✓ verified: ' + esc(pdf.verify_note || 'checked') : 'not verified'}</span>`;
+    $('download').disabled = !!pdf.stale;
+    $('preview-pdf').disabled = false;
+  } else if (pdf.status === 'failed'){
+    panel.style.display = 'none';
+    err.style.display = 'block';
+    err.innerHTML = `<b>The PDF could not be written.</b><br>${esc(pdf.error || 'unknown reason')}`;
+  } else {
+    panel.style.display = 'none';
+  }
+  if (pdf.status !== 'failed') err.style.display = 'none';
+  stale.style.display = pdf.stale ? 'flex' : 'none';
+  const none = state.selected_count === 0;
+  $('generate').disabled = none;
+  $('generate').textContent = none
+    ? 'Tick at least one page'
+    : (pdf.status === 'ready'
+        ? (pdf.stale ? 'Regenerate PDF' : 'Generate PDF again')
+        : 'Generate PDF');
+}
+
+$('generate').onclick = async () => {
+  clearErr();
+  const button = $('generate');
+  button.disabled = true;
+  pdfLine('starting…', true);
+  $('pdf-panel').style.display = 'block';
+  try {
+    // The server writes the file while this request is open, so the panel shows
+    // a working state rather than pretending it is instant.
+    state = await api(`/api/jobs/${jobId}/pdf`, {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({title: $('title').value})
+    });
+    render();
+  } catch (error) {
+    if (error.kind === 'selection') {
+      showSourceError(error);
+    } else {
+      $('pdf-panel').style.display = 'block';
+      pdfLine('could not be generated', false);
+      $('pdf-error').style.display = 'block';
+      $('pdf-error').innerHTML = `<b>${esc(error.message)}</b>` +
+        (error.advice ? '<br>' + esc(error.advice) : '');
+    }
+  } finally {
+    button.disabled = false;
+    renderPdfPanel();
+  }
+};
+
+$('regen-banner').onclick = () => $('generate').click();
+
+async function fetchPdfBlob(mode){
+  const response = await fetch(`/api/jobs/${jobId}/pdf?mode=${mode}`);
+  if (!response.ok){
+    const payload = await response.json().catch(() => ({}));
+    throw new Error(payload.detail || `Could not fetch the PDF (${response.status}).`);
+  }
+  return response.blob();
+}
+
+$('preview-pdf').onclick = async () => {
+  clearErr();
+  try {
+    const blob = await fetchPdfBlob('preview');
+    const url = URL.createObjectURL(blob);
+    const frame = document.createElement('iframe');
+    frame.src = url;
+    frame.title = 'PDF preview';
+    openLightbox(frame);
+    // the object URL is revoked when the lightbox closes
+    $('lightbox').dataset.objectUrl = url;
+  } catch (error) { showSourceError(error); }
+};
+
+$('download').onclick = async () => {
+  clearErr();
+  const button = $('download');
+  button.disabled = true;
+  button.innerHTML = '<span class="spin"></span>Preparing…';
+  try {
+    const blob = await fetchPdfBlob('download');
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = (state.pdf && state.pdf.filename) || 'notes.pdf';
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 20000);
+    $('privacy').innerHTML = `Saved <b>${esc(link.download)}</b> · ${fmtBytes(blob.size)} · `
+      + `${state.pdf.page_count} page(s). Everything stayed on this device.`;
+  } catch (error) {
+    showSourceError(error);
+  } finally {
+    button.innerHTML = 'Download PDF';
+    renderPdfPanel();
+  }
+};
+
+// ── lightbox + misc ─────────────────────────────────────────────────────────
+$('lightbox').onclick = e => { if (e.target.id === 'lightbox') closeLightbox(); };
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeLightbox(); });
+
+// say plainly which links work, straight from the server
+fetch('/api/sources').then(r => r.json()).then(info => {
+  const items = [];
+  items.push('<li><b>Works:</b> a link that points straight at a video file ' +
+             '(.mp4, .webm, .mov, .mkv) or a public page on a site that serves video ' +
+             'without a login.</li>');
+  items.push(`<li><b>Often asks for a login:</b> ${info.link.often_needs_login.map(esc).join(', ')}. ` +
+             `This server will not pretend to be you — it will say so, and you can upload the file instead.</li>`);
+  items.push(`<li><b>Never:</b> ${info.link.never.map(esc).join('; ')}.</li>`);
+  items.push('<li><b>Files from this device always work</b> and never touch the network.</li>');
+  $('src-list').innerHTML = items.join('');
+}).catch(() => {
+  $('src-list').innerHTML = '<li>Could not load the list — the server is not responding.</li>';
 });
 
-$('fetch').onclick = async () => {
-  clearErr();
-  const url = $('link').value.trim();
-  if (!url) return fail('paste a link first');
-  try { await start(await fetch('/api/fetch', {method:'POST', body: form({url})})); }
-  catch(err){ fail(err.message + ' — Instagram/Facebook/YouTube often require a login cookie. In the phone app you sign in once inside the app and it keeps working offline afterwards.'); }
-};
-
-$('all').onclick = () => setAll(true);
-$('none').onclick = () => setAll(false);
-$('title').oninput = updateName;
-$('download').onclick = () => {
-  const title = encodeURIComponent($('title').value.trim());
-  window.location = `/api/jobs/${jobId}/pdf?title=${title}`;
-};
-$('lightbox').onclick = e => { if (e.target.id !== 'lightbox-img') $('lightbox').classList.remove('on'); };
-document.addEventListener('keydown', e => { if (e.key === 'Escape') $('lightbox').classList.remove('on'); });
 show('input');
 </script>
 </body>

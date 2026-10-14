@@ -39,9 +39,46 @@ python -m pagesnap.cli tests/fixtures/lecture.mp4 -o notes.pdf --explain
 
 ```bash
 cd prototype
-pip install fastapi "uvicorn[standard]" python-multipart yt-dlp
+pip install fastapi "uvicorn[standard]" python-multipart yt-dlp pypdf
 python server.py --port 8000          # then open http://localhost:8000
 ```
+
+The prototype is the full workflow in a browser: **paste a link *or* choose a video
+→ detect → review → reorder / remove / add a page by timestamp → Generate PDF →
+preview → download → edit and regenerate.** Nothing needs re-uploading to
+regenerate.
+
+#### What it will and will not fetch
+
+| | |
+|---|---|
+| **Always works** | a video file on your own device |
+| **Works** | a direct link to a video file (`https://…/lecture.mp4`), and any site yt-dlp can read without a login |
+| **Usually needs a login** | Instagram and Facebook posts. It says so plainly and points you at the file upload — it will not sign in as you, and it will not touch DRM, paywalls or live streams |
+| **Refused on purpose** | anything that is not a video. FFmpeg will "play" a plain text file as a 640×400 `tty` stream, so the check is on the *container*, not on whether pixels came out |
+
+Every refusal states the real reason and offers the upload fallback. A link that
+cannot be reached fails within seconds with a connection error instead of hanging.
+
+#### Regenerating
+
+Editing the selection (remove, restore, reorder, capture) marks the existing PDF
+**stale**: the panel says why, the download button is disabled, and the single
+button becomes *Regenerate PDF*. The served file is built from the current
+selection and order, and is re-read and verified before it is offered.
+
+```bash
+cd prototype
+npm install jsdom          # once, for the browser-layer test
+npm test                   # the API suite, then the browser-layer suite
+python tests/test_prototype.py    # 82 checks against a real running server
+node tests/ui_test.mjs            # 50 checks driving the real page in a DOM
+```
+
+The API suite starts the real server, reads the real PDF bytes with `pypdf` and
+compares each embedded page against the page image it came from. The browser suite
+loads the actual page and clicks through the whole workflow, asserting there are no
+console errors and no unexpected failed requests.
 
 ### Host it as a public link
 
