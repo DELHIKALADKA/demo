@@ -37,7 +37,21 @@ jobs:
 
       - name: Build the debug APK
         working-directory: android
-        run: gradle assembleDebug --stacktrace --no-daemon
+        run: |
+          set -o pipefail
+          gradle assembleDebug --stacktrace --no-daemon 2>&1 | tee ../build.log
+
+      # Action logs need a GitHub login to read; committing the tail of the log
+      # into the branch makes a failed build diagnosable from anywhere.
+      - name: Keep the build log when it fails
+        if: failure()
+        run: |
+          tail -c 150000 build.log > ci-build-error.log || true
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -f ci-build-error.log
+          git commit -m "ci: build error log [skip ci]" || true
+          git push origin HEAD:arena/43b0ced0-demo || true
 
       - name: Give the APK a friendly, stable name
         run: cp android/app/build/outputs/apk/debug/app-debug.apk PageSnap.apk
