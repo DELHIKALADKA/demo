@@ -46,6 +46,12 @@ Needs Python 3.9 or newer and nothing else — no compiler, and no ffmpeg to ins
 because `imageio-ffmpeg` brings its own. It works from any directory, and on any
 port: `--port 4570` if 4567 is busy.
 
+**On Windows, double-click `run-pagesnap.bat`.** It finds Python, installs what is
+missing into a private folder, starts the server and opens the browser. There is also a
+`py` launcher route (`py -m pip install -r requirements.txt`, then
+`py prototype\server.py`); `python` may not exist on Windows, which is the usual reason
+a first run fails.
+
 **If it will not start, see [`TROUBLESHOOTING.md`](TROUBLESHOOTING.md).** The server
 checks its own setup before anything else: a missing package, an old Python, or a port
 that is already taken each produce a plain message with the exact command to fix it,

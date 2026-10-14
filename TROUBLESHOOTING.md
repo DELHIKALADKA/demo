@@ -38,22 +38,63 @@ Two things that trip people up here:
 
 ## "python is not recognised" / "command not found"
 
-Try these, in order, until one prints a version like `Python 3.12.3`:
+Python is not on this computer's PATH, so the command does not exist yet. The command
+name differs by system, so find yours first — try these until one prints a version like
+`Python 3.12.3`:
 
 ```bash
 python --version        # Windows and macOS often
 python3 --version       # macOS and Linux usually
-py --version            # the Windows launcher
+py --version            # the Windows launcher — try this first on Windows
 ```
 
-Whichever works is the command to use everywhere below — for example
-`py prototype\server.py` on Windows. If none of them work, install Python from
-<https://www.python.org/downloads/> and **on Windows tick "Add Python to PATH" in the
-installer**, then open a *new* terminal.
+Whichever works is the command to use everywhere below.
 
-On Windows, if `python` opens the Microsoft Store instead of running anything, that is
-the Store's placeholder. Use `py` instead, or turn the placeholder off in
-Settings → Apps → Advanced app settings → App execution aliases.
+### On Windows: use `py`
+
+`py` is the Windows Python launcher. It is on PATH whenever Python was installed
+properly, so it is the most reliable name:
+
+```bat
+py --version
+```
+
+Then, from the PageSnap folder:
+
+```bat
+py -m pip install -r requirements.txt
+py prototype\server.py
+```
+
+**Or just double-click `run-pagesnap.bat` in the PageSnap folder.** It does all three
+steps for you: it finds Python (trying `py` first), installs the packages into a
+private `.venv` folder so nothing is installed system-wide, starts the server in its
+own window, and opens your browser at <http://localhost:4567>. Keep that
+"PageSnap server" window open while you use PageSnap; closing it stops the server.
+
+### If `py` is not found either, Python is not installed
+
+1. Go to <https://www.python.org/downloads/> and download the Windows installer.
+2. **In the installer, tick "Add python.exe to PATH"** at the bottom of the first
+   screen. This is the step that is missed most often, and it is the reason `python`
+   is not recognised.
+3. Finish the install, then **open a brand-new terminal** (or double-click
+   `run-pagesnap.bat` again). An already-open terminal keeps its old PATH and will
+   still say "not recognised".
+
+From PowerShell you can also install it in one line:
+
+```powershell
+winget install -e --id Python.Python.3.12
+```
+
+### If `python` opens the Microsoft Store
+
+That is the Store's placeholder rather than Python, and it means Python is not
+installed. Either use `py` (if that works, Python *is* installed and only the
+placeholder is in the way) or turn the placeholder off in
+**Settings → Apps → Advanced app settings → App execution aliases** and switch off the
+`python.exe` entries there.
 
 ## "PageSnap is ALREADY running on http://localhost:4567"
 
