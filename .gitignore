@@ -16,3 +16,6 @@ prototype/static/*.local.*
 node_modules/
 prototype/tests/.server.log
 prototype/tests/.ui-server.log
+
+# GitHub Pages build output (assembled in CI, uploaded as an artifact)
+_site/

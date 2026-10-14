@@ -26,7 +26,7 @@ operator.**
 |---|---|---|
 | `engine/` | the detection engine + PDF writer + CLI, in Python | **tested**, 15/15 fixture combinations pass |
 | `prototype/` | a *server-backed* browser UI over that engine — the whole flow, including link downloads | working |
-| `docs/` | the **shareable web app**: no server at all, runs on the visitor's device | live if Pages is on |
+| `docs/` | the **shareable web app**: no server at all, runs on the visitor's device | live at <https://delhikaladka.github.io/demo/> (see [`DEPLOYMENT.md`](DEPLOYMENT.md)) |
 | `android/` | the phone app (Kotlin, Jetpack Compose) | sources kept; not being built |
 
 ### Try it in one minute
