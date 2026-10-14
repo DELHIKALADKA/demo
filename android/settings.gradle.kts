@@ -8,9 +8,7 @@ pluginManagement {
 dependencyResolutionManagement {
     repositories {
         google()
-        mavenCentral()
-        // yt-dlp for Android (the link downloader) is published on JitPack
-        maven { url = uri("https://jitpack.io") }
+        mavenCentral()   // the link downloader (yt-dlp for Android) lives here too
     }
 }
 rootProject.name = "PageSnap"

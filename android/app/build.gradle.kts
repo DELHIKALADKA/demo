@@ -54,8 +54,17 @@ dependencies {
 
     // The link downloader: the same yt-dlp engine used on the desktop, bundled so
     // the phone does the downloading itself - no server anywhere.
-    implementation("com.github.yausername.youtubedl-android:library:0.17.4")
-    implementation("com.github.yausername.youtubedl-android:ffmpeg:0.17.4")
+    //
+    // This is the actively maintained fork (the one modern downloader apps use);
+    // the original com.github.yausername coordinates stop at 0.17.0.
+    //
+    // LICENSE NOTE: this library is GPL-3.0. Bundling it means the app as a whole
+    // has to be GPL-3.0 and its source has to stay available. yt-dlp itself is
+    // public domain, but the Android wrapper is not. If that is ever a problem,
+    // everything except this one dependency is unaffected - the rest of PageSnap
+    // only uses the Android SDK.
+    implementation("io.github.junkfood02.youtubedl-android:library:0.18.1")
+    implementation("io.github.junkfood02.youtubedl-android:ffmpeg:0.18.1")
 
     testImplementation("junit:junit:4.13.2")
 }
