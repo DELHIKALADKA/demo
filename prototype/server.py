@@ -113,10 +113,21 @@ _YTDLP_RULES: List[Tuple[str, str, str, str]] = [
      ""),
     # Before the network rule on purpose: a 404 is a *missing video*, not a broken
     # connection, and the two need different advice.
-    (r"unavailable|removed|deleted|404|not found|no longer exists|does not exist",
+    (r"unavailable|removed|deleted|404|not found|gone|410|no longer exists|does not exist",
      "unavailable",
      "That video is not there any more, or the link is wrong.",
      ""),
+    # An expired or refused link is the classic "lecture recording" failure: the URL
+    # was only valid for a while, or the site wants a token we do not have. Telling
+    # the student to check their internet was actively misleading.
+    (r"http error 403|http error 401|forbidden|unauthori[sz]ed|access denied|"
+     r"\bexpired\b|link has expired|signature|token|session",
+     "expired_link",
+     "That link is no longer valid, or the site refused to serve the video to anyone "
+     "who is not signed in.",
+     "Time-limited links - lecture recordings, lecture-capture systems, shared files - "
+     "stop working after a while, and this server will not sign in as you. Open the page "
+     "while it still works and save the video to this device, then choose the file here."),
     # `urlopen error` is deliberately NOT here: a refused connection produces it,
     # and that is a network problem, not a bad video.
     (r"unsupported url|no video formats|no video found|no suitable|unsupported",
@@ -400,15 +411,39 @@ def _check_url(url: str) -> str:
     if len(url) > 2000:
         raise SourceProblem("That link is implausibly long.", "bad_url")
     parts = urllib.parse.urlsplit(url)
+    if not parts.scheme:
+        # "not a url at all" has no scheme, and 'that' links are not unsupported -
+        # it is simply not an address. Say which of the two it is.
+        raise SourceProblem(
+            "That is not a web address.", "bad_url",
+            "A link looks like https://example.com/video - copy it from the address bar "
+            "or the app's Share menu.")
     if parts.scheme not in ("http", "https"):
         raise SourceProblem(
-            f"'{parts.scheme or 'that'}' links are not supported - only http and https.",
+            f"'{parts.scheme}' links are not supported - only http and https.",
             "bad_url",
             "Copy the link from the address bar or the app's Share menu.")
     if not parts.netloc or "." not in parts.netloc:
         raise SourceProblem(f"'{url}' is not a valid web address.", "bad_url",
                             "A link looks like https://example.com/video.")
 
+    _assert_allowed(url)
+    return url
+
+
+def _assert_allowed(url: str, redirecting: bool = False) -> None:
+    """The public-address rule, applied to any URL we are about to open.
+
+    Called again for every redirect hop: a public link must not be able to bounce
+    us onto a private one. `169.254.x.x` is the cloud metadata service.
+    """
+    where = "redirected to" if redirecting else "is"
+    parts = urllib.parse.urlsplit(url)
+    if parts.scheme not in ("http", "https"):
+        raise SourceProblem(
+            f"That link {where} a '{parts.scheme or 'relative'}' address - only http and "
+            "https can be fetched.", "bad_url",
+            "Copy the link from the address bar or the app's Share menu.")
     host = parts.hostname or ""
     try:
         infos = socket.getaddrinfo(host, None)
@@ -417,10 +452,18 @@ def _check_url(url: str) -> str:
                             "Check the spelling, or the connection.")
     for info in infos:
         address = ipaddress.ip_address(info[4][0])
-        # 169.254.x.x is the cloud metadata service; nothing good comes of it.
         if address.is_link_local:
-            raise SourceProblem("That address is not allowed.", "bad_url")
-    return url
+            raise SourceProblem(
+                f"That link {where} an address this server is not allowed to open.",
+                "bad_url", "Link-local and metadata addresses are refused on purpose.")
+
+
+class _CheckedRedirects(urllib.request.HTTPRedirectHandler):
+    """Follow a redirect only if the place it points to is allowed."""
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):    # noqa: N802
+        _assert_allowed(newurl, redirecting=True)
+        return super().redirect_request(req, fp, code, msg, headers, newurl)
 
 
 def _looks_like_media(url: str) -> bool:
@@ -503,12 +546,43 @@ def _verify_video_file(path: str) -> Optional[SourceProblem]:
         "MP4 (H.264), MOV, MKV and WEBM work.")
 
 
+def _probe_content_type(url: str, timeout: float = 8.0) -> str:
+    """What would this URL send us? Answered with headers only, never a download.
+
+    Used when a link is not obviously a media file, to tell three things apart: a
+    direct video file, a web page, and something else entirely. Servers that refuse
+    HEAD are asked again for a single byte. Anything unexpected counts as unknown,
+    and the caller falls back to whatever the downloader reported.
+    """
+    opener = urllib.request.build_opener(_CheckedRedirects)
+    for attempt, headers in enumerate(({"User-Agent": "PageSnap/0.1"},
+                                       {"User-Agent": "PageSnap/0.1",
+                                        "Range": "bytes=0-0"})):
+        try:
+            request = urllib.request.Request(
+                url, headers=headers, method="HEAD" if attempt == 0 else "GET")
+            with opener.open(request, timeout=timeout) as response:
+                return (response.headers.get("Content-Type") or "").split(";")[0].strip().lower()
+        except urllib.error.HTTPError as exc:
+            if attempt == 0 and exc.code in (405, 501):     # HEAD not allowed here
+                continue
+            if exc.code in (401, 403, 404, 410):
+                raise explain_ytdlp(exc)                    # a real reason, e.g. expired
+            return ""
+        except SourceProblem:
+            raise                                           # already explained
+        except Exception:                                   # noqa: BLE001
+            return ""
+    return ""
+
+
 def _download_direct(url: str, target_dir: str, store: SnapJob) -> str:
     """Plain HTTP download, for links that are already a video file."""
     request = urllib.request.Request(url, headers={"User-Agent": "PageSnap/0.1"})
+    opener = urllib.request.build_opener(_CheckedRedirects)
     path = os.path.join(target_dir, "source" + (os.path.splitext(
         urllib.parse.urlsplit(url).path)[1] or ".mp4"))
-    with urllib.request.urlopen(request, timeout=30) as response:
+    with opener.open(request, timeout=30) as response:
         content_type = (response.headers.get("Content-Type") or "").split(";")[0]
         declared = int(response.headers.get("Content-Length") or 0)
         if declared > MAX_DOWNLOAD_BYTES:
@@ -583,12 +657,23 @@ def _import_link(store: SnapJob, url: str) -> None:
             with yt_dlp.YoutubeDL(dict(opts, skip_download=True)) as ydl:
                 info = ydl.extract_info(url, download=False)
         except Exception as exc:                     # noqa: BLE001
-            if _looks_like_media(url):
-                # A plain file link that yt-dlp does not know: fetch it ourselves.
+            # A link yt-dlp does not know. Before deciding anything, ask the server
+            # what it actually serves: a web page is not a video, and a direct file
+            # link without a .mp4 in the path is still a video.
+            served = "" if _looks_like_media(url) else _probe_content_type(url)
+            if _looks_like_media(url) or served.startswith(("video/", "audio/")) \
+                    or served == "application/octet-stream":
+                # A plain file link: fetch it ourselves.
                 store.progress = Progress("downloading the file", 0.1)
                 path = _download_direct(url, store.directory, store)
                 store.source_path = path
                 info = None
+            elif served.startswith("text/") or served.endswith(("html", "xml")):
+                raise SourceProblem(
+                    "That link is a web page, not a video file.", "web_page",
+                    "It is the page the video sits on, and this server will not take a "
+                    "page apart to guess which video you meant. Open the page, save the "
+                    "video to this device, then choose the file here - that always works.")
             else:
                 raise explain_ytdlp(exc)
 

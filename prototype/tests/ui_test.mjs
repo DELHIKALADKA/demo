@@ -150,6 +150,7 @@ async function main() {
     });
 
     const { window } = dom;
+    const realFetch = window.fetch;
     const $ = (id) => window.document.getElementById(id);
     const text = (id) => ($(id) ? $(id).textContent.trim() : '');
     const countPages = () => window.document.querySelectorAll('#pages .page').length;
@@ -226,6 +227,8 @@ async function main() {
       const head = new TextDecoder().decode(new Uint8Array(await blob.arrayBuffer()).slice(0, 5));
       check('the downloaded bytes start with %PDF-', head === '%PDF-', JSON.stringify(head));
       check('the blob is application/pdf', blob.type === 'application/pdf', blob.type);
+    check('the download filename ends in .pdf', /\.pdf$/.test(String(download.name)),
+      String(download.name));
     }
     check('the page confirms the save', /saved/i.test(text('privacy')), text('privacy'));
 
@@ -251,6 +254,8 @@ async function main() {
     check('stale banner appears after editing', $('stale').style.display !== 'none',
       $('stale').style.display);
     check('download disabled while stale', $('download').disabled === true);
+    check('preview disabled while stale too', $('preview-pdf').disabled === true,
+      `preview disabled=${$('preview-pdf').disabled}`);
     check('generate button now says regenerate', /regenerate/i.test(text('generate')), text('generate'));
 
     $('generate').click();
@@ -258,6 +263,7 @@ async function main() {
     check('regenerated PDF has 3 pages', /3/.test(text('pdf-meta')), text('pdf-meta'));
     check('stale banner cleared', $('stale').style.display === 'none', $('stale').style.display);
     check('download enabled again', $('download').disabled === false);
+    check('preview enabled again', $('preview-pdf').disabled === false);
 
     window.__downloads.length = 0;
     $('download').click();
@@ -314,8 +320,67 @@ async function main() {
       sheetImg ? sheetImg.src : 'none');
     $('lightbox').click();
 
-    // ── 11. the browser layer stayed clean ─────────────────────────────────
-    console.log('\n[11] console + network hygiene');
+    // ── 11. failures of the download path ──────────────────────────────────
+    console.log('\n[11] download failures are reported, not saved');
+    // The reorder in section 8 marked the file stale, so regenerate first: these
+    // checks are about a download that fails, not about a disabled button.
+    $('generate').click();
+    await waitFor('a fresh PDF before the failure tests',
+      () => /is ready/.test(text('pdf-line')) && $('download').disabled === false, 90000);
+    check('regenerated and download enabled before the failure tests',
+      $('download').disabled === false, `disabled=${$('download').disabled}`);
+    const downloadsBefore = window.__downloads.length;
+    const failuresBefore = failedRequests.length;
+
+    // (a) the server answers 200, but with a web page instead of a PDF
+    window.fetch = async () => new Response('<html>502 Bad Gateway</html>',
+      { status: 200, headers: { 'Content-Type': 'text/html' } });
+    $('download').click();
+    await waitFor('the bad response was rejected', () => $('err').style.display === 'block', 15000, 100);
+    check('a non-PDF body is refused', /not a pdf/i.test(text('err')), text('err').slice(0, 160));
+    check('  ↳ and nothing was saved to disk', window.__downloads.length === downloadsBefore,
+      `${window.__downloads.length} downloads`);
+
+    // (b) the server refuses because the file went stale
+    window.fetch = async () => new Response(JSON.stringify({ detail: 'The page list changed '
+      + 'after this PDF was generated - generate it again so the file matches what you see.' }),
+      { status: 409, headers: { 'Content-Type': 'application/json' } });
+    $('download').click();
+    await waitFor('the refusal is shown', () => /changed/i.test(text('err')), 15000, 100);
+    check('a refused download says the page list changed', /changed/i.test(text('err')),
+      text('err').slice(0, 160));
+    check('  ↳ and nothing was saved to disk', window.__downloads.length === downloadsBefore,
+      `${window.__downloads.length} downloads`);
+    check('  ↳ and it does not give video advice for a PDF problem',
+      !/choose a video from this device/i.test(text('err')), text('err').slice(0, 200));
+    check('  ↳ and the download button works again afterwards',
+      $('download').disabled === false && !/Preparing/.test(text('download')),
+      `disabled=${$('download').disabled} label=${text('download')}`);
+
+    // (c) an empty response must not be saved as an empty .pdf
+    window.fetch = async () => new Response('', { status: 200,
+      headers: { 'Content-Type': 'application/pdf' } });
+    $('download').click();
+    await waitFor('the empty body is caught', () => /empty/i.test(text('err')), 15000, 100);
+    check('an empty PDF body is refused', /empty/i.test(text('err')), text('err').slice(0, 160));
+    check('  ↳ and nothing was saved to disk', window.__downloads.length === downloadsBefore,
+      `${window.__downloads.length} downloads`);
+
+    // put the real fetch back and confirm the page still downloads correctly
+    window.fetch = realFetch;
+    $('download').click();
+    await waitFor('a real download after the failures',
+      () => window.__downloads.length > downloadsBefore, 30000);
+    const recovered = window.__downloads[window.__downloads.length - 1] || {};
+    check('downloads work again once the server is healthy',
+      /\.pdf$/.test(String(recovered.name)), String(recovered.name));
+    check('the three injected failures are the only new ones',
+      failedRequests.length === failuresBefore, `${failedRequests.length - failuresBefore} new`);
+    check('no console errors from the failure handling', consoleErrors.length === 0,
+      consoleErrors.slice(0, 3).join(' | '));
+
+    // ── 12. the browser layer stayed clean ─────────────────────────────────
+    console.log('\n[12] console + network hygiene');
     check('no console errors', consoleErrors.length === 0,
       consoleErrors.slice(0, 4).join(' | '));
     const unexpected = failedRequests.filter((line) => !/-> (400|409|422|404)/.test(line));

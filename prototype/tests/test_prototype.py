@@ -18,6 +18,7 @@ Exit code 0 = everything passed.
 
 from __future__ import annotations
 
+import http.server
 import io
 import json
 import os
@@ -25,6 +26,8 @@ import re
 import socket
 import subprocess
 import sys
+import tempfile
+import threading
 import time
 import urllib.error
 import urllib.parse
@@ -37,9 +40,13 @@ ROOT = os.path.abspath(os.path.join(HERE, "..", ".."))
 FIXTURES = os.path.join(ROOT, "engine", "tests", "fixtures")
 ENGINE = os.path.join(ROOT, "engine")
 sys.path.insert(0, ENGINE)
+sys.path.insert(0, os.path.join(ROOT, "prototype"))
 
 from PIL import Image                                   # noqa: E402
 from pypdf import PdfReader                             # noqa: E402
+import server as snapserver                             # noqa: E402  (the server itself,
+#                                                         for the checks that need to call
+#                                                         a real function with real input)
 
 PASSED: List[str] = []
 FAILED: List[str] = []
@@ -245,6 +252,11 @@ def run(base: str) -> None:
           f"{len(data)} vs {pdf.get('byte_size')}")
     disposition = header(headers, "Content-Disposition")
     check("attachment filename is set", "Test-Notes.pdf" in disposition, disposition)
+    check("download is served as application/pdf",
+          header(headers, "Content-Type").startswith("application/pdf"),
+          header(headers, "Content-Type"))
+    check("the attachment filename ends in .pdf", ".pdf\"" in disposition.replace("'", "\""),
+          disposition)
     reader = PdfReader(io.BytesIO(data))
     check("pypdf reads 4 pages", len(reader.pages) == 4, str(len(reader.pages)))
     check("PDF title metadata is the chosen name",
@@ -381,7 +393,7 @@ def run(base: str) -> None:
     print("\n[8] invalid and unsupported sources")
     bad_urls = [
         ("empty", "", "paste"),
-        ("not a url", "not a url at all", None),
+        ("not a url", "not a url at all", "web address"),
         ("wrong scheme", "ftp://example.com/video.mp4", "http"),
         ("file scheme", "file:///etc/passwd", "http"),
     ]
@@ -510,8 +522,184 @@ def run(base: str) -> None:
     else:
         check("local test host started", False, "docs/sample/lecture.mp4 missing")
 
-    # ---- 10. server hygiene ---------------------------------------------- #
-    print("\n[10] server behaviour")
+    # ---- 10. how a link is classified ------------------------------------ #
+    print("\n[10] link classification: video file, web page, expired link")
+
+    # These run against the real mapping function, with the exact strings the
+    # downloader produces, because getting these wrong sends a student hunting for a
+    # problem with their internet that does not exist.
+    print("      (what the user is told, per failure)")
+    for label, text, expected in [
+        ("a link whose token ran out", "ERROR: [generic] Unable to download webpage: "
+                                       "HTTP Error 403: Forbidden", "expired_link"),
+        ("a link that needs a login", "ERROR: [generic] Unable to download webpage: "
+                                      "HTTP Error 401: Unauthorized", "expired_link"),
+        ("a video that was deleted", "ERROR: [generic] Unable to download webpage: "
+                                     "HTTP Error 410: Gone", "unavailable"),
+        ("a link that 404s", "ERROR: [generic] Unable to download webpage: "
+                             "HTTP Error 404: Not Found", "unavailable"),
+        ("a refused connection", "ERROR: [generic] Unable to download webpage: "
+                                 "<urlopen error [Errno 111] Connection refused>", "network"),
+        ("a private post", "ERROR: [instagram] abc: This video is private", "needs_login"),
+        ("a DRM stream", "ERROR: [vimeo] 1: This video is DRM protected", "drm"),
+        ("a live stream", "ERROR: [twitch] abc: This live stream is not available",
+         "live_stream"),
+    ]:
+        problem = snapserver.explain_ytdlp(Exception(text))
+        check(f"{label} is reported as '{expected}'", problem.kind == expected,
+              f"got '{problem.kind}': {problem.message}")
+        check(f"  ↳ and has something useful to say ({label})",
+              len(problem.message) > 20 and problem.advice is not None, str(problem))
+
+    # The guard itself: every hop of a redirect is checked with the same rule as the
+    # original link, so a public URL cannot bounce us onto a private address.
+    for label, url, expect in [
+        ("the cloud metadata address", "http://169.254.169.254/latest/meta-data/",
+         "not allowed"),
+        ("a non-http redirect target", "file:///etc/passwd", "only http and https"),
+    ]:
+        try:
+            snapserver._assert_allowed(url, redirecting=True)
+            check(f"a redirect to {label} is refused", False, "it was allowed")
+        except snapserver.SourceProblem as problem:
+            check(f"a redirect to {label} is refused", expect in problem.message,
+                  problem.message)
+    snapserver._assert_allowed("http://127.0.0.1:8000/sample.mp4", redirecting=True)
+    check("an ordinary redirect target is still allowed", True)
+
+    # A small host that serves the same video under several disguises.
+    sample = os.path.join(ROOT, "docs", "sample", "lecture.mp4")
+    if os.path.exists(sample):
+        with open(sample, "rb") as fh:
+            clip = fh.read()
+
+        class LinkHost(http.server.BaseHTTPRequestHandler):
+            def log_message(self, *args):            # keep the test output clean
+                pass
+
+            def _reply(self, code, content_type, body=b"", extra=None, head_only=False):
+                self.send_response(code)
+                self.send_header("Content-Type", content_type)
+                self.send_header("Content-Length", str(len(body)))
+                for key, value in (extra or {}).items():
+                    self.send_header(key, value)
+                self.end_headers()
+                if body and not head_only:
+                    self.wfile.write(body)
+
+            def do_GET(self):                        # noqa: N802
+                self._route(False)
+
+            def do_HEAD(self):                       # noqa: N802
+                self._route(True)
+
+            def _route(self, head_only):
+                path = self.path.split("?")[0]
+                if path == "/clip":                  # a direct video, no .mp4 in the path
+                    self._reply(200, "video/mp4", clip, head_only=head_only)
+                elif path == "/article.html":        # the page a video sits on
+                    self._reply(200, "text/html; charset=utf-8",
+                                b"<html><body><h1>Lecture 6</h1><p>watch below</p>"
+                                b"</body></html>", head_only=head_only)
+                elif path == "/expired":             # a link whose token ran out
+                    self._reply(403, "text/html", b"<html>expired</html>",
+                                head_only=head_only)
+                elif path == "/moved":
+                    self._reply(302, "text/html", b"",
+                                {"Location": "http://169.254.169.254/latest/meta-data/"},
+                                head_only=head_only)
+                else:
+                    self._reply(404, "text/plain", b"nothing here", head_only=head_only)
+
+        host = http.server.ThreadingHTTPServer(("127.0.0.1", 0), LinkHost)
+        threading.Thread(target=host.serve_forever, daemon=True).start()
+        link_port = host.server_address[1]
+        print(f"      (test host on 127.0.0.1:{link_port})")
+
+        def import_link(url, timeout=120):
+            body, content_type = multipart({"url": url}, "unused", "x", b"")
+            code, raw, _ = request("POST", base + "/api/fetch", data=body,
+                                   headers={"Content-Type": content_type}, timeout=30)
+            if code != 200:
+                return code, json.loads(raw.decode() or "{}"), {}
+            return code, json.loads(raw.decode()), wait_ready(
+                base, json.loads(raw.decode()).get("id", ""), timeout=timeout)
+
+        try:
+            # 0. what the URL actually serves, asked before any download
+            check("a video URL is identified as video/mp4",
+                  snapserver._probe_content_type(f"http://127.0.0.1:{link_port}/clip")
+                  == "video/mp4", "wrong content type")
+            check("a web page URL is identified as html",
+                  snapserver._probe_content_type(f"http://127.0.0.1:{link_port}/article.html")
+                  .startswith("text/html"), "wrong content type")
+            try:
+                snapserver._probe_content_type(f"http://127.0.0.1:{link_port}/expired")
+                check("an expired link is recognised while probing", False, "no error raised")
+            except snapserver.SourceProblem as problem:
+                check("an expired link is recognised while probing",
+                      problem.kind == "expired_link", f"{problem.kind}: {problem.message}")
+            try:
+                snapserver._probe_content_type(f"http://127.0.0.1:{link_port}/moved")
+                check("a redirect to a private address is refused while probing", False,
+                      "the redirect was followed")
+            except snapserver.SourceProblem as problem:
+                check("a redirect to a private address is refused while probing",
+                      "not allowed" in problem.message, problem.message)
+
+            # 1. a direct video file whose URL has no media extension at all
+            code, started, state = import_link(f"http://127.0.0.1:{link_port}/clip")
+            check("a direct video link with no file extension is imported",
+                  state.get("status") == "ready", f"{code} {state.get('status')} "
+                  f"{state.get('error')}")
+            check("  ↳ and its pages are detected",
+                  len(state.get("pages", [])) == 4, str(len(state.get("pages", []))))
+
+            # 2. a web page must be refused as a web page, not guessed at
+            code, started, state = import_link(f"http://127.0.0.1:{link_port}/article.html")
+            check("an ordinary web page is refused",
+                  state.get("status") == "failed", f"{state.get('status')} {state.get('error')}")
+            check("  ↳ and it says the link is a web page, not a video",
+                  state.get("error_kind") == "web_page"
+                  and "web page" in (state.get("error") or "").lower(),
+                  f"{state.get('error_kind')}: {state.get('error')}")
+            check("  ↳ and offers the local upload instead",
+                  "choose" in (state.get("error_advice") or "").lower(),
+                  str(state.get("error_advice"))[:140])
+            check("  ↳ and nothing was detected from it",
+                  not state.get("pages"), str(state.get("pages"))[:80])
+
+            # 3. an expired link is an expired link, not a network problem
+            code, started, state = import_link(f"http://127.0.0.1:{link_port}/expired")
+            check("an expired link fails", state.get("status") == "failed",
+                  f"{state.get('status')}")
+            check("  ↳ and is not blamed on the connection",
+                  state.get("error_kind") == "expired_link"
+                  and "internet" not in (state.get("error") or " ").lower()
+                  and "reached" not in (state.get("error") or " ").lower(),
+                  f"{state.get('error_kind')}: {state.get('error')}")
+            check("  ↳ and explains that time-limited links expire",
+                  "expire" in (state.get("error") or "").lower()
+                  or "no longer valid" in (state.get("error") or "").lower(),
+                  str(state.get("error"))[:140])
+
+            # 4. a redirect to a private address is refused, not followed
+            code, started, state = import_link(f"http://127.0.0.1:{link_port}/moved")
+            check("a link that redirects to a private address fails",
+                  state.get("status") == "failed", f"{state.get('status')} "
+                  f"{state.get('error')}")
+            check("  ↳ and says so, instead of downloading from it",
+                  state.get("error_kind") in ("bad_url", "network", "not_a_video"),
+                  f"{state.get('error_kind')}: {state.get('error')}")
+        finally:
+            host.shutdown()
+            host.server_close()
+    else:
+        check("a direct video link with no file extension is imported", False,
+              "docs/sample/lecture.mp4 missing")
+
+    # ---- 11. server hygiene ---------------------------------------------- #
+    print("\n[11] server behaviour")
     code, raw, _ = request("GET", base + "/api/jobs/does-not-exist")
     check("unknown job -> 404", code == 404, f"got {code}")
     code, raw, _ = request("GET", base + "/api/jobs/does-not-exist/pdf")
@@ -565,7 +753,7 @@ def main() -> int:
 
     # the server must not have logged an unhandled exception anywhere
     log_text = open(log_path).read()
-    print("\n[11] server log")
+    print("\n[12] server log")
     check("no tracebacks in the server log", "Traceback (most recent call last)" not in log_text,
           log_text[-1500:] if "Traceback" in log_text else "")
     check("no 500 responses in the log", " 500 " not in log_text,

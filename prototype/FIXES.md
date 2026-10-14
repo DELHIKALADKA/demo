@@ -9,8 +9,8 @@ server and the page around it.
 |---|---|
 | `prototype/server.py` | rewritten: URL validation, honest error mapping, background jobs, stable page ids, PDF generation + verification, manual capture, re-analysis |
 | `prototype/static/index.html` | rewritten against the new API; same visual style as before |
-| `prototype/tests/test_prototype.py` | new — 82 checks against a real running server |
-| `prototype/tests/ui_test.mjs` | new — 50 checks driving the real page in a DOM |
+| `prototype/tests/test_prototype.py` | new — 119 checks against a real running server |
+| `prototype/tests/ui_test.mjs` | new — 65 checks driving the real page in a DOM |
 | `prototype/package.json` | new — `npm test` runs both suites |
 | `README.md` | documents the prototype workflow, what it fetches and what it refuses |
 | `.gitignore` | ignores `node_modules/` and the test logs |
@@ -98,6 +98,61 @@ server refuses to serve a stale or absent file with `409` and a message, so a
 stale PDF can never be handed out silently. Generating re-reads the written file
 and verifies it before offering it.
 
+## Second pass: the download path, and link classification
+
+Five more defects, all found by reading the code rather than by guessing at the
+browser.
+
+### 6. An expired link was blamed on the user's internet
+
+`403 Forbidden` from a link whose token had run out — the classic lecture-recording
+failure — was reported as *"The site could not be reached from this computer."*
+So was `401`, and a deleted video (`410`). Telling a student to check their
+connection when the link had simply expired sends them looking in the wrong place.
+
+**Fix:** `401`, `403`, `expired`, `signature`, `token` and `session` are recognised
+as **an expired or refused link**, with advice that names the real cause: *"open the
+page while it still works and save the video, then choose the file here"*. `410`
+joined `404` as **the video is gone**.
+
+### 7. A web page was handed to the downloader and the error explained afterwards
+
+Any link that was not obviously a media file went to yt-dlp, and whatever it said
+became the message. An ordinary web page is now asked about first: the server is
+queried for its `Content-Type` (headers only, never a download).
+
+- `video/*` or `application/octet-stream` → fetch it as a file, even with no
+  `.mp4` anywhere in the URL
+- `text/*` or `…html` → refused as **a web page, not a video file**, and told to
+  save the video and upload it
+- anything else → the downloader's own reason, mapped as before
+
+### 8. Redirects were followed blindly
+
+A redirect is a second URL, and the address that was checked was only the first
+one. Every hop is now checked with the same rule, so a public link cannot bounce
+onto a private or link-local address.
+
+### 9. A PDF failure showed advice about video links
+
+The error helper ended every message with *"You can always choose a video from this
+device instead"* — correct for a failed link, nonsense under a failed PDF download.
+PDF actions now report without it.
+
+### 10. The download could not tell a PDF from anything else
+
+The page saved whatever bytes came back. An empty body, a truncated file, or an
+error page served with a `200` would all have been saved as a `.pdf` that does not
+open — the worst outcome, and a silent one.
+
+**Fix:** the bytes are checked before they reach the save dialog — empty is
+refused, and the file must begin with `%PDF-`. A missing or wrong MIME type is
+corrected rather than trusted. The filename is forced to end in `.pdf`, the object
+URL is revoked 20 seconds after the click (never immediately, which can cancel a
+download that has not started), and while the file is stale the **preview** button
+is disabled along with the download — the server refuses a stale file anyway, so
+the button should not offer it.
+
 ## What works now
 
 Paste a link **or** choose a file → detect → review → tick / remove / restore /
@@ -136,7 +191,7 @@ pip install fastapi "uvicorn[standard]" python-multipart yt-dlp pypdf
 python server.py --port 8000          # open http://localhost:8000
 
 npm install jsdom                     # once
-npm test                              # 82 API checks, then 50 browser checks
+npm test                              # 119 API checks, then 65 browser checks
 ```
 
 Manual pass, two minutes:
@@ -152,7 +207,12 @@ Manual pass, two minutes:
    upload fallback, not a fake success.
 6. Choose any `.txt` file → refused, with the reason.
 
+The download path is tested with the server deliberately broken underneath it: a
+`200` carrying HTML instead of a PDF, a `409` refusal, and an empty body. Each one
+must surface a readable error, must **not** save a file, must not offer video
+advice, and the button must recover once the server is healthy again.
+
 One thing the sandbox cannot do: there is no browser here, so no screenshot was
-taken. The page's behaviour is covered by the 50 DOM checks (no console errors, no
+taken. The page's behaviour is covered by the 65 DOM checks (no console errors, no
 unexpected failed requests, and the download bytes start with `%PDF-`), but
 please give it one look yourself.
