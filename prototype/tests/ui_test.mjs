@@ -13,7 +13,8 @@
  *   node prototype/tests/ui_test.mjs
  */
 
-import { readFileSync, openSync } from 'node:fs';
+import { readFileSync, openSync, mkdtempSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
@@ -55,9 +56,12 @@ function freePort() {
 
 async function startServer(port) {
   const log = openSync(join(here, '.ui-server.log'), 'a');
+  // the library writes real files; keep them in a throwaway folder for tests
+  const library = mkdtempSync(join(tmpdir(), 'pagesnap-ui-lib-'));
   const child = spawn('python3', [join(ROOT, 'prototype', 'server.py'),
                                   '--port', String(port), '--host', '127.0.0.1'],
-                      { stdio: ['ignore', log, log] });
+                      { stdio: ['ignore', log, log],
+                        env: { ...process.env, PAGESNAP_LIBRARY: library } });
   const deadline = Date.now() + 30000;
   while (Date.now() < deadline) {
     try {
@@ -136,6 +140,10 @@ async function main() {
           return url;
         };
         window.URL.revokeObjectURL = (url) => window.__blobs.delete(url);
+        // jsdom has no confirm(); every browser does. Answer "yes" so the
+        // destructive-action path can be exercised.
+        window.__confirmed = [];
+        window.confirm = (message) => { window.__confirmed.push(message); return true; };
         // jsdom cannot actually download; record what the page tried to save.
         window.__downloads = [];
         const realClick = window.HTMLAnchorElement.prototype.click;
@@ -151,6 +159,11 @@ async function main() {
 
     const { window } = dom;
     const realFetch = window.fetch;
+    const click = (selector) => {
+      const el = window.document.querySelector(selector);
+      if (el) el.click();
+      return !!el;
+    };
     const $ = (id) => window.document.getElementById(id);
     const text = (id) => ($(id) ? $(id).textContent.trim() : '');
     const countPages = () => window.document.querySelectorAll('#pages .page').length;
@@ -321,7 +334,7 @@ async function main() {
       sheetImg ? sheetImg.src : 'none');
     $('lightbox').click();
 
-    // ── 13. failures of the download path ──────────────────────────────────
+    // ── 16. failures of the download path ──────────────────────────────────
     // ── 11. YouTube link kinds ─────────────────────────────────────────────
     console.log('\n[11] YouTube Shorts through the page');
     const failuresBeforeLinks = failedRequests.length;
@@ -418,7 +431,227 @@ async function main() {
     check('  ↳ the download path stayed clean', consoleErrors.length === 0,
       consoleErrors.slice(0, 3).join(' | '));
 
-    console.log('\n[13] download failures are reported, not saved');
+    // ── 13. the redesigned shell: home, navigation, theme ──────────────────
+    console.log('\n[13] home screen, bottom navigation and themes');
+    const $all = (sel) => [...window.document.querySelectorAll(sel)];
+
+    // the app opens on Home, not on a bare import form
+    click('[data-go="home"]');
+    await sleep(50);
+    check('the app opens on Home', $('screen-home').style.display !== 'none',
+      `home=${$('screen-home').style.display} create=${$('step-input').style.display}`);
+    check('the other screens are hidden until asked for',
+      $('screen-library').style.display === 'none'
+      && $('screen-settings').style.display === 'none');
+    check('the greeting is filled in', /good (morning|afternoon|evening)/i.test(text('greeting')),
+      text('greeting'));
+    check('the hero says what PageSnap does',
+      /turn videos into pdfs/i.test($('screen-home').textContent), 'hero heading missing');
+    check('there is a primary way to start', !!$('go-create'));
+    check('the home screen shows both import options',
+      !!$('opt-upload') && !!$('opt-link'));
+    check('the three-step guide is shown on Home',
+      $('guide').style.display !== 'none' && /import/i.test($('guide').textContent)
+      && /review/i.test($('guide').textContent) && /save/i.test($('guide').textContent));
+
+    // the guide hides itself for good, and can be brought back
+    $('dismiss-guide').click();
+    await sleep(60);
+    check('the guide can be dismissed', $('guide').style.display === 'none');
+    check('  ↳ and the choice is remembered',
+      window.localStorage.getItem('pagesnap-guide') === 'hidden',
+      String(window.localStorage.getItem('pagesnap-guide')));
+    click('[data-go="settings"]');
+    await sleep(80);
+    check('Settings says the guide is hidden', /hidden/i.test(text('guide-state')),
+      text('guide-state'));
+    $('guide-toggle').click();
+    await sleep(60);
+    check('Settings can bring the guide back',
+      window.localStorage.getItem('pagesnap-guide') !== 'hidden',
+      String(window.localStorage.getItem('pagesnap-guide')));
+
+    // the bottom navigation: four real destinations, and it says which one you are on
+    const tabs = $all('#tabbar [data-go]').map(b => b.dataset.go);
+    check('the bottom bar has Home, Create, Library and Settings',
+      JSON.stringify(tabs) === JSON.stringify(['home', 'create', 'library', 'settings']),
+      tabs.join(', '));
+    check('every tab has a visible label, not just an icon',
+      $all('#tabbar button').every(b => (b.textContent || '').trim().length > 2),
+      $all('#tabbar button').map(b => b.textContent.trim()).join('|'));
+
+    for (const [tab, screen] of [['home','screen-home'], ['create','step-input'],
+                                 ['library','screen-library'], ['settings','screen-settings']]) {
+      click(`#tabbar [data-go="${tab}"]`);
+      await sleep(60);
+      check(`the ${tab} tab opens its own screen`, $(screen).style.display !== 'none',
+        `screen ${screen} is ${$(screen).style.display}`);
+      const current = $all('#tabbar [aria-current="page"]').map(b => b.dataset.go);
+      check(`  ↳ and the bar marks ${tab} as the current tab`,
+        current.length === 1 && current[0] === tab, current.join(',') || 'none marked');
+    }
+
+    // a job in progress is offered back, rather than silently forgotten
+    click('#tabbar [data-go="home"]');
+    await sleep(80);
+    check('Home offers to resume the work in progress', $('resume').style.display !== 'none',
+      $('resume').style.display);
+    check('  ↳ and the offer describes the real job', /page\(s\) found/.test(text('resume-text')),
+      text('resume-text'));
+    $('resume-go').click();
+    await sleep(60);
+    check('  ↳ continue returns to the pages', $('step-result').style.display !== 'none',
+      $('step-result').style.display);
+
+    // themes: dark is the default, switching works, and the choice is remembered
+    console.log('      (appearance)');
+    check('dark is the default appearance',
+      window.document.documentElement.dataset.theme === 'dark',
+      String(window.document.documentElement.dataset.theme));
+    click('[data-theme-set="light"]');
+    await sleep(60);
+    check('choosing Light switches the whole document',
+      window.document.documentElement.dataset.theme === 'light',
+      String(window.document.documentElement.dataset.theme));
+    check('  ↳ and the preference is saved',
+      window.localStorage.getItem('pagesnap-theme') === 'light',
+      String(window.localStorage.getItem('pagesnap-theme')));
+    const seg = (name) => $all(`[data-theme-set="${name}"]`)[0];
+    check('  ↳ the Light button reports itself as pressed',
+      seg('light').getAttribute('aria-pressed') === 'true',
+      String(seg('light').getAttribute('aria-pressed')));
+    check('  ↳ and Dark reports itself as not pressed',
+      seg('dark').getAttribute('aria-pressed') === 'false',
+      String(seg('dark').getAttribute('aria-pressed')));
+    click('[data-theme-set="system"]');
+    await sleep(60);
+    check('choosing System is supported and saved',
+      window.localStorage.getItem('pagesnap-theme') === 'system'
+      && ['dark','light'].includes(window.document.documentElement.dataset.theme),
+      `saved=${window.localStorage.getItem('pagesnap-theme')} `
+      + `resolved=${window.document.documentElement.dataset.theme}`);
+    // the quick toggle in the header always leaves an explicit choice
+    $('theme-quick').click();
+    await sleep(60);
+    const afterQuick = window.document.documentElement.dataset.theme;
+    check('the header toggle switches appearance directly',
+      ['dark','light'].includes(afterQuick)
+      && window.localStorage.getItem('pagesnap-theme') === afterQuick,
+      `${afterQuick} saved=${window.localStorage.getItem('pagesnap-theme')}`);
+    click('[data-theme-set="dark"]');           // back to the default for the rest
+    await sleep(60);
+    check('switching themes never leaves a broken state',
+      window.document.documentElement.dataset.theme === 'dark');
+
+    // ── 14. the library holds real files ───────────────────────────────────
+    console.log('\n[14] library (real files, real actions)');
+    click('#tabbar [data-go="library"]');
+    await waitFor('the library lists something', () => $all('#library-list .lib-item').length > 0
+      || $all('#library-list .empty').length > 0, 20000, 150);
+    const rows = $all('#library-list .lib-item');
+    check('the PDF made earlier is in the library', rows.length > 0,
+      `${rows.length} rows`);
+    check('  ↳ with a real name ending in .pdf',
+      /\.pdf$/.test(rows[0].querySelector('.name').textContent),
+      rows[0] ? rows[0].querySelector('.name').textContent : '');
+    check('  ↳ and its page count', /\d+ page\(s\)/.test(rows[0].textContent),
+      rows[0].textContent.replace(/\s+/g, ' ').slice(0, 90));
+    check('  ↳ and a real date', /(today|\d{4})/i.test(rows[0].textContent),
+      rows[0].textContent.replace(/\s+/g, ' ').slice(0, 90));
+    check('  ↳ and the folder it lives in is stated',
+      /kept in|will be kept in/i.test(text('library-folder')), text('library-folder'));
+
+    // downloading a saved PDF really produces PDF bytes
+    const savedBefore = window.__downloads.length;
+    rows[0].querySelector('[data-lib="download"]').click();
+    await waitFor('the saved PDF downloads', () => window.__downloads.length > savedBefore, 20000);
+    const savedDl = window.__downloads[window.__downloads.length - 1] || {};
+    check('a library download uses its real filename', /\.pdf$/.test(String(savedDl.name)),
+      String(savedDl.name));
+    const savedBlob = window.__blobs.get(savedDl.href);
+    if (savedBlob) {
+      const head = new TextDecoder('latin1')
+        .decode(new Uint8Array(await savedBlob.slice(0, 5).arrayBuffer()));
+      check('  ↳ and the bytes are a real PDF', head === '%PDF-', JSON.stringify(head));
+    } else {
+      check('  ↳ and the bytes are a real PDF', false, 'no blob');
+    }
+
+    // renaming is inline and really changes the stored file
+    const newName = 'Renamed By Test';
+    rows[0].querySelector('[data-lib="rename"]').click();
+    await waitFor('the inline rename field appears',
+      () => !!$all('#library-list input[type=text]').length, 10000, 100);
+    const renameInput = $all('#library-list input[type=text]')[0];
+    renameInput.value = newName;
+    renameInput.parentElement.querySelector('.btn.primary').click();
+    await waitFor('the rename is applied', () => /Renamed-By-Test/.test(
+      $all('#library-list .lib-item')[0].textContent), 20000, 200);
+    check('a saved PDF can be renamed, and the new name sticks',
+      /Renamed-By-Test\.pdf/.test($all('#library-list .lib-item')[0].textContent),
+      $all('#library-list .lib-item')[0].textContent.replace(/\s+/g, ' ').slice(0, 80));
+
+    // the API agrees - this is a real file, not a DOM trick
+    const libJson = await (await fetch(base + '/api/library')).json();
+    check('the server lists the same file under the new name',
+      libJson.items.some(i => i.filename === 'Renamed-By-Test.pdf'),
+      libJson.items.map(i => i.filename).join(', '));
+
+    // deleting asks first, then really removes the file
+    const countBefore = $all('#library-list .lib-item').length;
+    rows[0].querySelector('[data-lib="delete"]').click();
+    await waitFor('the row disappears', () => $all('#library-list .lib-item').length
+      < countBefore, 20000, 200);
+    const afterDelete = await (await fetch(base + '/api/library')).json();
+    check('deleting removes the file for real',
+      !afterDelete.items.some(i => i.filename === 'Renamed-By-Test.pdf'),
+      afterDelete.items.map(i => i.filename).join(', '));
+
+    // ── 15. accessibility of the new shell ─────────────────────────────────
+    console.log('\n[15] accessibility and layout safety');
+    const nameless = $all('button').filter(b => {
+      const label = (b.getAttribute('aria-label') || b.getAttribute('title')
+                     || b.textContent || b.getAttribute('aria-labelledby') || '').trim();
+      return !label;
+    });
+    check('every button has an accessible name', nameless.length === 0,
+      `${nameless.length} nameless button(s)`);
+
+    const tickButtons = $all('#pages .tick');
+    check('each page tick is a real button', tickButtons.every(t => t.tagName === 'BUTTON'),
+      tickButtons.map(t => t.tagName).join(','));
+    check('  ↳ and reports its state to a screen reader',
+      tickButtons.every(t => ['true','false'].includes(t.getAttribute('aria-pressed'))),
+      tickButtons.map(t => t.getAttribute('aria-pressed')).join(','));
+
+    const viewport = window.document.querySelector('meta[name=viewport]').content;
+    check('the viewport meta allows safe-area handling and device width',
+      /width=device-width/.test(viewport) && /viewport-fit=cover/.test(viewport), viewport);
+
+    // jsdom does not lay out or paint, so a real "does it overflow" measurement is not
+    // possible here. What can be checked is that nothing asks for a fixed width that
+    // would not fit a 320px phone, and that long words are allowed to wrap.
+    const wideInline = $all('[style]').filter(el => {
+      const m = /(?:^|;)\s*width\s*:\s*(\d+)px/.exec(el.getAttribute('style') || '');
+      return m && Number(m[1]) > 300;
+    });
+    check('no element demands a fixed width wider than a small phone', wideInline.length === 0,
+      wideInline.map(e => e.id || e.tagName).join(','));
+
+    const css = window.document.querySelector('style').textContent;
+    check('the layout caps itself with max-width rather than fixed widths',
+      /max-width:680px/.test(css), 'container max-width missing');
+    check('long words are allowed to wrap instead of overflowing',
+      /overflow-wrap:anywhere/.test(css));
+    check('horizontal scrolling is explicitly prevented', /overflow-x:hidden/.test(css));
+    check('the bottom bar reserves space for the system gesture area',
+      /env\(safe-area-inset-bottom\)/.test(css));
+    check('touch targets are at least 44px tall',
+      /--tap:46px/.test(css), 'tap-size token missing');
+    check('reduced-motion is respected', /prefers-reduced-motion/.test(css));
+    check('the server connection notice exists for a dead server', !!$('err'));
+
+    console.log('\n[16] download failures are reported, not saved');
     // The reorder in section 8 marked the file stale, so regenerate first: these
     // checks are about a download that fails, not about a disabled button.
     $('generate').click();
@@ -477,7 +710,7 @@ async function main() {
       consoleErrors.slice(0, 3).join(' | '));
 
     // ── 14. the browser layer stayed clean ─────────────────────────────────
-    console.log('\n[14] console + network hygiene');
+    console.log('\n[17] console + network hygiene');
     check('no console errors', consoleErrors.length === 0,
       consoleErrors.slice(0, 4).join(' | '));
     const unexpected = failedRequests.filter((line) => !/-> (400|409|422|404)/.test(line));

@@ -46,10 +46,16 @@ Needs Python 3.9 or newer and nothing else — no compiler, and no ffmpeg to ins
 because `imageio-ffmpeg` brings its own. It works from any directory, and on any
 port: `--port 4570` if 4567 is busy.
 
-The prototype is the full workflow in a browser: **paste a link *or* choose a video
-→ detect → review → reorder / remove / add a page by timestamp → Generate PDF →
-preview → download → edit and regenerate.** Nothing needs re-uploading to
-regenerate.
+The prototype is a phone-shaped app: **Home · Create · Library · Settings** with a
+bottom navigation bar, dark by default and a light theme in Settings. The workflow is
+**paste a link *or* choose a video → detect → review → reorder / remove / add a page by
+timestamp → Create PDF → preview → download → edit and regenerate.** Nothing needs
+re-uploading to regenerate, and every PDF you make is kept in `~/PageSnap` so the
+Library can hand it back later.
+
+The interface was redesigned in one pass without touching the detection engine or the
+processing logic; see [`prototype/REDESIGN.md`](prototype/REDESIGN.md) for what
+changed, what was tested, and what is still imperfect.
 
 #### What it will and will not fetch
 

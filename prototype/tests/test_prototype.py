@@ -908,8 +908,59 @@ def run(base: str) -> None:
             check(f"  ↳ the plain filename stays ASCII ({label})",
                   disposition.split('filename="')[1].split('"')[0].isascii(), disposition)
 
+    # ---- 13. the library keeps real files ---------------------------------- #
+    print("\n[13] the library (real files on disk)")
+    code, raw, _ = request("GET", f"{base}/api/library")
+    library = json.loads(raw.decode() or "{}")
+    check("the library lists what was generated", code == 200 and library.get("count", 0) >= 1,
+          f"code={code} count={library.get('count')}")
+    check("it states the folder it uses", bool(library.get("folder")), str(library.get("folder")))
+    entry = (library.get("items") or [{}])[0]
+    check("an entry carries name, page count, size and date",
+          all(entry.get(k) for k in ("filename", "page_count", "byte_size", "updated")),
+          str(entry)[:200])
+    check("every listed file is reported as present", entry.get("exists") is True, str(entry)[:120])
+
+    code, data, headers = request("GET", f"{base}/api/library/{entry.get('id')}/file")
+    check("a saved PDF downloads as a real PDF",
+          code == 200 and data.startswith(b"%PDF-"), f"HTTP {code}")
+    if code == 200:
+        saved_pages = len(PdfReader(io.BytesIO(data)).pages)
+        check("  \u21b3 and it opens with the right page count",
+              saved_pages == entry["page_count"],
+              f"{saved_pages} vs {entry['page_count']}")
+    check("  \u21b3 with a filename in the headers",
+          "filename" in header(headers, "Content-Disposition").lower(),
+          header(headers, "Content-Disposition"))
+
+    code, raw, _ = request("POST", f"{base}/api/library/{entry.get('id')}",
+                           json_body={"title": "Renamed In Test"})
+    renamed = json.loads(raw.decode() or "{}")
+    check("a saved PDF can be renamed", code == 200 and renamed.get("filename")
+          == "Renamed-In-Test.pdf", f"code={code} {raw[:160]}")
+    code, raw, _ = request("POST", f"{base}/api/library/{entry.get('id')}", json_body={"title": ""})
+    check("an empty name is refused, not silently accepted", code == 422, f"code={code}")
+    code, raw, _ = request("POST", f"{base}/api/library/{entry.get('id')}",
+                           json_body={"title": "\u0905\u0927\u094d\u092f\u093e\u092f 6"})
+    hindi = json.loads(raw.decode() or "{}")
+    check("a renamed PDF can use another script, as at the download",
+          code == 200 and hindi.get("filename") == "\u0905\u0927\u094d\u092f\u093e\u092f-6.pdf"
+          and str(hindi.get("filename_ascii", "")).isascii(),
+          f"{hindi.get('filename')!r}/{hindi.get('filename_ascii')!r}")
+
+    code, raw, _ = request("DELETE", f"{base}/api/library/{entry.get('id')}")
+    check("a saved PDF can be deleted", code == 200, f"code={code}")
+    code, raw, _ = request("GET", f"{base}/api/library/{entry.get('id')}/file")
+    check("  \u21b3 and it is really gone afterwards", code == 404, f"code={code}")
+    library2 = json.loads(request("GET", f"{base}/api/library")[1].decode() or "{}")
+    check("  \u21b3 it no longer appears in the library",
+          all(i.get("id") != entry.get("id") for i in library2.get("items", [])),
+          str([i.get("id") for i in library2.get("items", [])])[:120])
+    code, raw, _ = request("GET", f"{base}/api/library/does-not-exist/file")
+    check("an unknown library file gives 404, not a crash", code == 404, f"code={code}")
+
     # ---- 11. server hygiene ---------------------------------------------- #
-    print("\n[13] server behaviour")
+    print("\n[14] server behaviour")
     code, raw, _ = request("GET", base + "/api/jobs/does-not-exist")
     check("unknown job -> 404", code == 404, f"got {code}")
     code, raw, _ = request("GET", base + "/api/jobs/does-not-exist/pdf")
@@ -935,7 +986,10 @@ def main() -> int:
         server = subprocess.Popen(
             [sys.executable, os.path.join(ROOT, "prototype", "server.py"),
              "--port", str(port), "--host", "127.0.0.1"],
-            stdout=log, stderr=subprocess.STDOUT)
+            stdout=log, stderr=subprocess.STDOUT,
+            # the library writes real files; tests keep theirs in a throwaway folder
+            env=dict(os.environ,
+                     PAGESNAP_LIBRARY=tempfile.mkdtemp(prefix="pagesnap-test-lib-")))
         try:
             deadline = time.time() + 30
             ready = False
@@ -963,7 +1017,7 @@ def main() -> int:
 
     # the server must not have logged an unhandled exception anywhere
     log_text = open(log_path).read()
-    print("\n[14] server log")
+    print("\n[15] server log")
     check("no tracebacks in the server log", "Traceback (most recent call last)" not in log_text,
           log_text[-1500:] if "Traceback" in log_text else "")
     check("no 500 responses in the log", " 500 " not in log_text,

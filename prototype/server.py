@@ -31,6 +31,7 @@ from __future__ import annotations
 
 import argparse
 import io
+import json
 import ipaddress
 import os
 import re
@@ -62,6 +63,12 @@ from pagesnap.pipeline import Job, JobOptions, capture_pages                    
 
 STATIC = os.path.join(os.path.dirname(os.path.abspath(__file__)), "static")
 WORK = os.path.join(tempfile.gettempdir(), "pagesnap-jobs")
+#: Where the PDFs you make are kept, so the Library screen can show the real files
+#: after the job itself is gone. A folder on this computer - not a cloud service, not
+#: a database, and nothing leaves the machine. Override with PAGESNAP_LIBRARY.
+LIBRARY = os.environ.get("PAGESNAP_LIBRARY") or os.path.join(
+    os.path.expanduser("~"), "PageSnap")
+LIBRARY_KEEP = 30                    # newest first; older ones are pruned
 
 #: Longest video we will analyse, and the most we will download from a link.
 #: Both are here so a pasted playlist of 3-hour lectures fails with a sentence
@@ -220,6 +227,7 @@ class SnapJob:
     title: str = ""
     display_source: str = ""                 # what the user called it (name or URL)
     source: SourceInfo = field(default_factory=SourceInfo)   # classified once, up front
+    library_id: str = ""                     # set once the PDF is on the library shelf
     source_path: Optional[str] = None        # the file on disk, or None while importing
     status: str = "queued"                   # queued|downloading|analysing|ready|failed
     error: str = ""
@@ -303,6 +311,7 @@ class SnapJob:
             "revision": self.revision,
             "can_capture": self.source_path is not None and self.status == "ready",
             "notes": self.job.notes if self.job else [],
+            "library_id": self.library_id,
             "pdf": {
                 "status": self.pdf.status,
                 "stage": self.pdf.stage,
@@ -1013,6 +1022,7 @@ def _generate_pdf(store: SnapJob) -> None:
         store.pdf.created = time.time()
         store.pdf.stage = "ready"
         store.pdf.fraction = 1.0
+        _library_save(store)
     except SourceProblem as problem:
         store.pdf.status = "failed"
         store.pdf.error = problem.message
@@ -1021,6 +1031,86 @@ def _generate_pdf(store: SnapJob) -> None:
         store.pdf.status = "failed"
         store.pdf.error = f"{type(exc).__name__}: {exc}"
         store.pdf.stage = "failed"
+
+
+# --------------------------------------------------------------------------- #
+# the library - the PDFs you actually made, saved as files on this computer
+# --------------------------------------------------------------------------- #
+
+def _library_index_path() -> str:
+    return os.path.join(LIBRARY, "index.json")
+
+
+def _library_read() -> Dict[str, dict]:
+    try:
+        with open(_library_index_path(), "r", encoding="utf-8") as fh:
+            entries = json.load(fh)
+        return {str(e["id"]): e for e in entries if isinstance(e, dict) and e.get("id")}
+    except (OSError, ValueError):
+        return {}
+
+
+def _library_write(entries: Dict[str, dict]) -> None:
+    os.makedirs(LIBRARY, exist_ok=True)
+    ordered = sorted(entries.values(), key=lambda e: e.get("updated", 0), reverse=True)
+    # Keep the shelf tidy: the newest survive, the rest are removed with their files.
+    for stale in ordered[LIBRARY_KEEP:]:
+        try:
+            os.remove(os.path.join(LIBRARY, os.path.basename(stale.get("file", ""))))
+        except OSError:
+            pass
+    ordered = ordered[:LIBRARY_KEEP]
+    tmp = _library_index_path() + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as fh:
+        json.dump(ordered, fh, indent=1)
+    os.replace(tmp, _library_index_path())
+
+
+def _library_save(store: SnapJob) -> None:
+    """Put the PDF that was just written on the shelf, replacing any earlier copy.
+
+    Keyed by job, because regenerating after an edit is the *same* document with new
+    contents - not a second file with the same name.
+    """
+    if store.pdf.status != "ready" or not store.pdf.data:
+        return
+    try:
+        os.makedirs(LIBRARY, exist_ok=True)
+        filename = f"{store.id}.pdf"
+        with open(os.path.join(LIBRARY, filename), "wb") as fh:
+            fh.write(store.pdf.data)
+        entries = _library_read()
+        entry = {
+            "id": store.id,
+            "title": store.title or "notes",
+            "filename": store.pdf.filename or "notes.pdf",
+            "filename_ascii": store.pdf.filename_ascii or "notes.pdf",
+            "file": filename,
+            "page_count": store.pdf.page_count,
+            "byte_size": store.pdf.byte_size,
+            "created": entries.get(store.id, {}).get("created", time.time()),
+            "updated": time.time(),
+            "source": store.display_source,
+            "source_label": store.source.label or ("your own file"
+                                                  if store.source.kind in ("other", "")
+                                                  else store.source.kind),
+            "duration": round(store.job.duration, 1) if store.job else 0,
+        }
+        entries[store.id] = entry
+        _library_write(entries)
+        store.library_id = store.id
+    except OSError as exc:
+        # A library that cannot be written must not take the PDF down with it.
+        store.notes.append(f"Could not save a copy to the library: {exc}")
+
+
+def _library_entry(entry_id: str) -> Optional[dict]:
+    safe = os.path.basename(entry_id)
+    entry = _library_read().get(safe)
+    if not entry:
+        return None
+    path = os.path.join(LIBRARY, os.path.basename(entry.get("file", "")))
+    return entry if os.path.exists(path) else None
 
 
 # --------------------------------------------------------------------------- #
@@ -1345,6 +1435,73 @@ def fetch_pdf(jid: str, mode: str = "download") -> Response:
                  "X-Page-Count": str(store.pdf.page_count),
                  "X-Revision": str(store.pdf.revision)},
     )
+
+
+@app.get("/api/library")
+def library_list() -> JSONResponse:
+    """The PDFs on this computer, newest first. Real files, checked as they are listed."""
+    entries = []
+    for entry in sorted(_library_read().values(), key=lambda e: e.get("updated", 0),
+                        reverse=True):
+        path = os.path.join(LIBRARY, os.path.basename(entry.get("file", "")))
+        if not os.path.exists(path):
+            continue                                   # never show a file that is not there
+        entry = dict(entry)
+        entry["exists"] = True
+        entry["download"] = f"/api/library/{entry['id']}/file"
+        entries.append(entry)
+    return JSONResponse({"folder": LIBRARY, "count": len(entries), "items": entries})
+
+
+@app.get("/api/library/{entry_id}/file")
+def library_file(entry_id: str, mode: str = "download") -> Response:
+    """Hand back a saved PDF. Still never a stale one: the stored copy is what was made."""
+    entry = _library_entry(entry_id)
+    if not entry:
+        raise HTTPException(404, "That file is not in the library any more.")
+    path = os.path.join(LIBRARY, os.path.basename(entry["file"]))
+    with open(path, "rb") as fh:
+        data = fh.read()
+    disposition = "inline" if mode == "preview" else "attachment"
+    ascii_name = entry.get("filename_ascii") or "notes.pdf"
+    quoted = urllib.parse.quote(entry.get("filename") or "notes.pdf", safe="")
+    return Response(data, media_type="application/pdf",
+                    headers={"Content-Disposition": f"{disposition}; "
+                                                    f"filename=\"{ascii_name}\"; "
+                                                    f"filename*=UTF-8''{quoted}"})
+
+
+@app.post("/api/library/{entry_id}")
+def library_rename(entry_id: str, body: dict) -> JSONResponse:
+    """Rename a saved PDF. The file on disk is renamed with it, not just the label."""
+    entry = _library_entry(entry_id)
+    if not entry:
+        raise HTTPException(404, "That file is not in the library any more.")
+    title = str((body or {}).get("title", "")).strip()[:120]
+    if not title:
+        raise HTTPException(422, "Give the PDF a name first.")
+    name, ascii_name = download_names(title)
+    entries = _library_read()
+    entries[entry["id"]].update({"title": title, "filename": name,
+                                 "filename_ascii": ascii_name, "updated": time.time()})
+    _library_write(entries)
+    return JSONResponse(entries[entry["id"]])
+
+
+@app.delete("/api/library/{entry_id}")
+def library_delete(entry_id: str) -> JSONResponse:
+    """Take a PDF off the shelf, and delete the file itself."""
+    entry = _library_entry(entry_id)
+    if not entry:
+        raise HTTPException(404, "That file is not in the library any more.")
+    try:
+        os.remove(os.path.join(LIBRARY, os.path.basename(entry["file"])))
+    except OSError:
+        pass
+    entries = _library_read()
+    entries.pop(entry["id"], None)
+    _library_write(entries)
+    return JSONResponse({"ok": True})
 
 
 @app.delete("/api/jobs/{jid}")
