@@ -178,6 +178,24 @@
 
 <div class="lb" id="lightbox"><img id="lightbox-img" alt=""></div>
 
+<!-- If someone saves this page and double-clicks it, the browser blocks module
+     scripts over file:// and the page would look broken. Say so plainly, and point
+     at the single-file version instead. -->
+<script>
+if (location.protocol === 'file:') {
+  document.addEventListener('DOMContentLoaded', function () {
+    var box = document.getElementById('err');
+    box.style.display = 'block';
+    box.innerHTML = 'This page needs to be opened from a web link, not from a file '
+      + '(browsers block their own security model that way).<br><br>'
+      + 'Either open the link you were given, or use <b>pagesnap-offline.html</b> — '
+      + 'the single-file version that works by double-clicking.';
+    document.getElementById('step-work').style.display = 'none';
+    document.getElementById('step-review').style.display = 'none';
+  });
+}
+</script>
+
 <script type="module">
 import { detect, sampleVideo, signature, REASONS, seekTo } from './pagesnap-core.js';
 import { buildPdf, canvasToJpeg, safeFilename } from './pagenotes-pdf.js';

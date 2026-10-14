@@ -52,9 +52,14 @@ does all the work locally, hosting costs nothing and scales to any number of
 students.
 
 ```bash
-python3 docs/serve.py --port 5173      # or run it locally
-node docs/test/run.mjs                 # the browser engine, checked against the same fixtures
+python3 docs/serve.py --port 5173         # run it locally
+node docs/test/run.mjs                    # the browser engine vs the same fixtures
+python3 docs/build_single.py              # -> docs/pagesnap-offline.html (one file, 40 KB)
 ```
+
+`pagesnap-offline.html` is the whole app in a single file: no imports, no network,
+no install. Save it, mail it, or drop it in a class group — a student can open it
+on a phone with no internet and still get their notes out of a video.
 
 ## Why "find the page changes" is harder than it sounds
 
