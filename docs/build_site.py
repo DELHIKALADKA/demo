@@ -16,6 +16,13 @@ small hosting extras, then validates the result and fails loudly if anything is 
 
     python3 docs/build_site.py                 # -> _site/
     python3 docs/build_site.py --out /tmp/x    # somewhere else
+    python3 docs/build_site.py --check         # check docs/ itself; writes nothing
+
+GitHub Pages for this repository publishes from `main` + `/docs` ("Deploy from a
+branch"), which serves the docs/ folder as committed, with no build step of ours in
+between. `--check` is the gate for that: it runs the same checks against docs/ in
+place, and also requires the committed `pagesnap-offline.html` to be up to date.
+`_site/` is for any other static host.
 
 Every path inside the app is relative (`./pagesnap-core.js`), which is what makes it
 work under a project subpath such as https://<user>.github.io/demo/ - the validation
@@ -76,23 +83,29 @@ def copy_runtime(out_dir: str) -> list[str]:
     return copied
 
 
-def build_single_file(out_dir: str) -> str:
-    """Regenerate the one-file offline build with the project's own script."""
+def offline_html() -> str:
+    """The one-file offline build, regenerated from the current sources and checked."""
     sys.path.insert(0, HERE)
     try:
         import build_single                                   # type: ignore
     except ImportError as exc:                                # pragma: no cover
         fail(f"could not import build_single.py ({exc})")
     html = build_single.build(HERE)
+    # The whole point of that file is that it needs nothing else - and that it still
+    # has every element the app drives.
+    with open(os.path.join(HERE, "index.html"), encoding="utf-8") as fh:
+        found = build_single.problems(html, fh.read())
+    if found:
+        fail("the single-file build is broken: " + "; ".join(found))
+    return html
+
+
+def build_single_file(out_dir: str) -> str:
+    """Regenerate the one-file offline build with the project's own script."""
+    html = offline_html()
     target = os.path.join(out_dir, "pagesnap-offline.html")
     with open(target, "w", encoding="utf-8") as fh:
         fh.write(html)
-    # The whole point of that file is that it needs nothing else.
-    body = html.split("<script>")[-1].split("</script>")[0]
-    if re.search(r"^\s*import\s", body, re.M):
-        fail("the single-file build still contains an import statement")
-    if 'type="module"' in html:
-        fail("the single-file build still declares a module script")
     return "pagesnap-offline.html"
 
 
@@ -139,7 +152,7 @@ def validate(out_dir: str) -> None:
     """Check the built site the way the browser will: does everything it asks for exist?"""
     index = os.path.join(out_dir, "index.html")
     if not os.path.exists(index):
-        fail("_site/index.html is missing - GitHub Pages would serve a 404")
+        fail(f"{os.path.relpath(index, ROOT)} is missing - GitHub Pages would serve a 404")
 
     html = open(index, encoding="utf-8").read()
 
@@ -197,13 +210,38 @@ def tree(out_dir: str) -> None:
     log(f"    {total / 1024:8.1f} KB  total")
 
 
+def check_docs() -> int:
+    """Check docs/ in place, exactly as GitHub Pages serves it from main + /docs.
+
+    That mode publishes the folder as it is committed, so whatever is in git is what a
+    student gets - including the generated offline copy, which `_site/` regenerates
+    for itself but Pages takes from git. So that copy has to match the sources.
+    """
+    log("Checking docs/ as GitHub Pages serves it from main + /docs")
+    validate(HERE)
+    with open(os.path.join(HERE, "pagesnap-offline.html"), encoding="utf-8") as fh:
+        committed = fh.read()
+    if committed != offline_html():
+        fail("docs/pagesnap-offline.html is out of date with index.html and the modules. "
+             "Run `python3 docs/build_single.py` and commit the result.")
+    log("  docs/pagesnap-offline.html matches the sources and passes its checks")
+    log("")
+    log("docs/ is ready to be served from main + /docs.")
+    return 0
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Build the deployable PageSnap site")
     parser.add_argument("--out", default=os.path.join(ROOT, "_site"),
                         help="output directory (default: _site at the repository root)")
     parser.add_argument("--base-path", default="/demo/",
                         help="the path the site is published under (default /demo/)")
+    parser.add_argument("--check", action="store_true",
+                        help="check docs/ in place, as GitHub Pages serves it from "
+                             "main + /docs; writes nothing")
     args = parser.parse_args()
+    if args.check:
+        return check_docs()
 
     out_dir = os.path.abspath(args.out)
     log(f"Building the PageSnap site from docs/ into {os.path.relpath(out_dir, ROOT)}/")

@@ -4,6 +4,9 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#0f1115">
+<link rel="icon" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA2NCA2NCIgcm9sZT0iaW1nIiBhcmlhLWxhYmVsPSJQYWdlU25hcCI+CiAgPGRlZnM+CiAgICA8bGluZWFyR3JhZGllbnQgaWQ9ImciIHgxPSIwIiB5MT0iMCIgeDI9IjEiIHkyPSIxIj4KICAgICAgPHN0b3Agb2Zmc2V0PSIwIiBzdG9wLWNvbG9yPSIjN2M2Y2Y1Ii8+CiAgICAgIDxzdG9wIG9mZnNldD0iLjU1IiBzdG9wLWNvbG9yPSIjNGFhOGYwIi8+CiAgICAgIDxzdG9wIG9mZnNldD0iMSIgc3RvcC1jb2xvcj0iIzM5Y2ZkOSIvPgogICAgPC9saW5lYXJHcmFkaWVudD4KICA8L2RlZnM+CiAgPHJlY3Qgd2lkdGg9IjY0IiBoZWlnaHQ9IjY0IiByeD0iMTUiIGZpbGw9InVybCgjZykiLz4KICA8cGF0aCBkPSJNMjEgMTNoMTIuMmw5LjggOS44djI3QTIgMiAwIDAgMSA0MSA1MkgyMWEyIDIgMCAwIDEtMi0yVjE1YTIgMiAwIDAgMSAyLTJaIgogICAgICAgIGZpbGw9IiNmZmZmZmYiIG9wYWNpdHk9Ii45NyIvPgogIDxwYXRoIGQ9Ik0zMy4yIDEzbDkuOCA5LjhoLTkuOHoiIGZpbGw9IiNjZGQ3ZmYiLz4KICA8cGF0aCBkPSJNMjYgMjhoMTFNMjYgMzQuNWgxMU0yNiA0MWg2IiBzdHJva2U9IiM2ZDVjZTciIHN0cm9rZS13aWR0aD0iMy4yIgogICAgICAgIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgb3BhY2l0eT0iLjU1Ii8+CiAgPGNpcmNsZSBjeD0iNDIuNSIgY3k9IjQyLjUiIHI9IjYuMiIgZmlsbD0idXJsKCNnKSIvPgogIDxwYXRoIGQ9Ik00MC4xIDQyLjZsMS44IDIgMy4yLTQiIHN0cm9rZT0iI2ZmZiIgc3Ryb2tlLXdpZHRoPSIyLjIiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIKICAgICAgICBzdHJva2UtbGluZWpvaW49InJvdW5kIiBmaWxsPSJub25lIi8+Cjwvc3ZnPgo=" type="image/svg+xml">
+<meta name="apple-mobile-web-app-title" content="PageSnap">
+<meta name="apple-mobile-web-app-capable" content="yes">
 <title>PageSnap — video to notes PDF (works offline)</title>
 <meta name="description" content="Pick a video of notes; get a PDF with one screenshot per page. Runs entirely in your browser — nothing is uploaded.">
 <style>
@@ -119,6 +122,32 @@
     <video id="video" playsinline muted preload="auto" style="display:none"></video>
 
     <div class="note">This is the offline copy: it works with no internet and no installation. Pick any video saved on this device and it will write the PDF here.</div>
+
+    <div class="note" id="link-note">
+      <b>Have an Instagram / Facebook / YouTube link instead of a file?</b><br>
+      A web page is not allowed to download videos from those sites — the browser does not
+      expose it, and no website can work around that. Save the video to your device first
+      (or use the phone app, which does the download itself).
+    </div>
+    <div class="err" id="err" style="display:none"></div>
+  </section>
+
+  <!-- 2 ─ progress -->
+  <section class="card" id="step-work" style="display:none">
+    <div class="stage" id="stage"><b>Getting ready…</b></div>
+    <div class="bar"><i id="fill"></i></div>
+    <div class="stage" id="stage2"></div>
+    <div class="hint">Screenshots are taken only where a page changed <i>and</i> finished being
+      written — never mid-stroke, never mid-fade.</div>
+  </section>
+
+  <!-- 3 ─ review -->
+  <section class="card" id="step-review" style="display:none">
+    <div class="row" style="justify-content:space-between;align-items:flex-end">
+      <div>
+        <h2 class="sec" id="summary"></h2>
+        <div class="stage" id="summary2"></div>
+      </div>
       <div class="row">
         <button class="btn ghost" id="all">Keep all</button>
         <button class="btn ghost" id="none">Keep none</button>
@@ -148,24 +177,6 @@
 </div>
 
 <div class="lb" id="lightbox"><img id="lightbox-img" alt=""></div>
-
-<!-- If someone saves this page and double-clicks it, the browser blocks module
-     scripts over file:// and the page would look broken. Say so plainly, and point
-     at the single-file version instead. -->
-<script>
-if (location.protocol === 'file:') {
-  document.addEventListener('DOMContentLoaded', function () {
-    var box = document.getElementById('err');
-    box.style.display = 'block';
-    box.innerHTML = 'This page needs to be opened from a web link, not from a file '
-      + '(browsers block their own security model that way).<br><br>'
-      + 'Either open the link you were given, or use <b>pagesnap-offline.html</b> — '
-      + 'the single-file version that works by double-clicking.';
-    document.getElementById('step-work').style.display = 'none';
-    document.getElementById('step-review').style.display = 'none';
-  });
-}
-</script>
 
 <script>
 (() => {
@@ -867,7 +878,13 @@ function stage(text, fraction) {
 
 // ── pick a file ────────────────────────────────────────────────────────────
 $('drop').onclick = () => $('file').click();
-$('file').onchange = (e) => { if (e.target.files[0]) run(e.target.files[0]); };
+$('file').onchange = (e) => {
+  const chosen = e.target.files[0];
+  // Clear the input, so picking the same video again (after "Start over", or to retry
+  // it with another setting) still counts as a change and runs.
+  e.target.value = '';
+  if (chosen) run(chosen);
+};
 ['dragenter', 'dragover'].forEach((ev) =>
   $('drop').addEventListener(ev, (e) => { e.preventDefault(); $('drop').classList.add('hot'); }));
 ['dragleave', 'drop'].forEach((ev) =>
@@ -875,19 +892,22 @@ $('file').onchange = (e) => { if (e.target.files[0]) run(e.target.files[0]); };
 $('drop').addEventListener('drop', (e) => { if (e.dataTransfer.files[0]) run(e.dataTransfer.files[0]); });
 
 // The sample is the same synthetic lecture the engine's tests use, so a first-time
-// visitor can see the whole thing work without hunting for a video.
-$('sample').onclick = async () => {
-  $('sample').disabled = true;
-  $('sample').textContent = 'Loading the sample…';
+// visitor can see the whole thing work without hunting for a video. The offline
+// single-file copy has no sample beside it, so it has no such button.
+const sampleButton = $('sample');
+if (sampleButton) sampleButton.onclick = async () => {
+  sampleButton.disabled = true;
+  sampleButton.textContent = 'Loading the sample…';
   try {
     const response = await fetch('./sample/lecture.mp4');
+    if (!response.ok) throw new Error(`the sample answered HTTP ${response.status}`);
     const blob = await response.blob();
     await run(new File([blob], 'sample-lecture.mp4', { type: 'video/mp4' }));
   } catch (error) {
     fail('Could not load the sample video.');
   } finally {
-    $('sample').disabled = false;
-    $('sample').textContent = 'Try it with a sample lecture video';
+    sampleButton.disabled = false;
+    sampleButton.textContent = 'Try it with a sample lecture video';
   }
 };
 
@@ -899,8 +919,9 @@ async function run(chosen) {
   show('work');
   noteTitle = file.name.replace(/\.[^.]+$/, '').slice(0, 60) || 'notes';
 
+  let url = null;
   try {
-    const url = URL.createObjectURL(file);
+    url = URL.createObjectURL(file);
     video.src = url;
     await new Promise((resolve, reject) => {
       video.onloadedmetadata = resolve;
@@ -950,9 +971,11 @@ async function run(chosen) {
     stage('Done', 1);
     renderReview(report);
     show('review');
-    URL.revokeObjectURL(url);
   } catch (error) {
     fail(error.message || 'Something went wrong while reading that video.');
+  } finally {
+    // Release the video on every way out - also when it failed or had no pages.
+    if (url) URL.revokeObjectURL(url);
   }
 }
 
@@ -966,7 +989,10 @@ function thumbnailOf(canvas, width = 300) {
 }
 
 // ── review ─────────────────────────────────────────────────────────────────
+let videoSeconds = 0;   // kept from the last run, so the summary still shows it after a tick
+
 function renderReview(report) {
+  videoSeconds = (report && report.duration) || 0;
   const grid = $('pages');
   grid.innerHTML = '';
   pages.forEach((page, i) => {
@@ -977,22 +1003,35 @@ function renderReview(report) {
       <img src="${page.thumb}" alt="page ${i + 1}">
       <div class="meta"><span>#${i + 1}</span><span>${page.time.toFixed(1)}s</span></div>`;
     el.querySelector('.tick').onclick = (e) => { e.stopPropagation(); toggle(i); };
-    el.querySelector('img').onclick = () => {
-      $('lightbox-img').src = page.thumb;
-      $('lightbox').classList.add('on');
-    };
+    // Looking at a page must not change whether it is kept.
+    el.querySelector('img').onclick = (e) => { e.stopPropagation(); openPreview(page, i); };
     el.onclick = () => toggle(i);
     grid.appendChild(el);
   });
-  updateSummary(report);
+  updateSummary();
   $('title').value = noteTitle;
   updateFilename();
 }
 
-function updateSummary(report) {
+// The preview shows the capture that goes into the PDF, at full size, so a student
+// can check it is readable - not the 300 px thumbnail.
+let previewUrl = null;
+function openPreview(page, i) {
+  closePreview();
+  previewUrl = URL.createObjectURL(new Blob([page.jpeg], { type: 'image/jpeg' }));
+  $('lightbox-img').src = previewUrl;
+  $('lightbox-img').alt = `page ${i + 1}, full size`;
+  $('lightbox').classList.add('on');
+}
+function closePreview() {
+  $('lightbox').classList.remove('on');
+  if (previewUrl) { URL.revokeObjectURL(previewUrl); previewUrl = null; }
+}
+
+function updateSummary() {
   const kept = pages.filter((p) => p.keep).length;
   $('summary').textContent = `${pages.length} page${pages.length === 1 ? '' : 's'} found`;
-  const seconds = report && report.duration ? `${report.duration.toFixed(1)}s of video` : 'the video';
+  const seconds = videoSeconds ? `${videoSeconds.toFixed(1)}s of video` : 'the video';
   $('summary2').textContent = `${kept} selected · ${seconds}`;
   $('download').disabled = kept === 0;
   $('download').textContent = kept === 0 ? 'Tick at least one page' : `Download the PDF (${kept} page${kept === 1 ? '' : 's'})`;
@@ -1014,8 +1053,8 @@ function renderReviewKeepStates() {
 $('all').onclick = () => { pages.forEach((p) => { p.keep = true; }); renderReviewKeepStates(); updateSummary(); };
 $('none').onclick = () => { pages.forEach((p) => { p.keep = false; }); renderReviewKeepStates(); updateSummary(); };
 $('startover').onclick = () => { pages = []; file = null; show('pick'); };
-$('lightbox').onclick = () => $('lightbox').classList.remove('on');
-document.addEventListener('keydown', (e) => { if (e.key === 'Escape') $('lightbox').classList.remove('on'); });
+$('lightbox').onclick = closePreview;
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closePreview(); });
 
 $('title').oninput = () => { noteTitle = $('title').value; updateFilename(); };
 function updateFilename() {

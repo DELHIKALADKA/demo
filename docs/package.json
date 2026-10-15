@@ -6,7 +6,9 @@
   "description": "The browser build of PageSnap: find the pages in a video and write a PDF, all on the visitor's own device.",
   "scripts": {
     "test": "node test/run.mjs",
+    "test:browser": "node test/browser.mjs",
     "build": "python3 build_site.py",
+    "check": "python3 build_site.py --check",
     "serve": "python3 serve.py"
   }
 }

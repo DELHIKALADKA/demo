@@ -71,6 +71,7 @@ Two honest limits, so nobody is disappointed:
 ```bash
 python3 docs/serve.py --port 5173     # then open http://localhost:5173
 node docs/test/run.mjs                # the page-finding engine vs ground truth: 15/15
+node docs/test/browser.mjs            # the real page, end to end, in headless Chrome
 ```
 
 The page has a **"Try it with a sample lecture video"** button, so the first thing

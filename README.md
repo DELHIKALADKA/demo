@@ -103,15 +103,17 @@ console errors and no unexpected failed requests.
 ### Host it as a public link
 
 `docs/` is a complete, self-contained web app: no backend, no database, no build
-step. Any static host will serve it — GitHub Pages (Settings → Pages → branch +
-`/docs`), Netlify Drop, Cloudflare Pages, or a college server. Because the page
-does all the work locally, hosting costs nothing and scales to any number of
-students.
+step. Any static host will serve it — GitHub Pages (Settings → Pages → branch
+`main` + `/docs`, see [`DEPLOYMENT.md`](DEPLOYMENT.md)), Netlify Drop, Cloudflare
+Pages, or a college server. Because the page does all the work locally, hosting
+costs nothing and scales to any number of students.
 
 ```bash
 python3 docs/serve.py --port 5173         # run it locally
 node docs/test/run.mjs                    # the browser engine vs the same fixtures
+node docs/test/browser.mjs                # the real page, end to end, in headless Chrome
 python3 docs/build_single.py              # -> docs/pagesnap-offline.html (one file, 40 KB)
+python3 docs/build_site.py --check        # docs/ is fit to serve as committed
 ```
 
 `pagesnap-offline.html` is the whole app in a single file: no imports, no network,

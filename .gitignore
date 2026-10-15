@@ -17,5 +17,5 @@ node_modules/
 prototype/tests/.server.log
 prototype/tests/.ui-server.log
 
-# GitHub Pages build output (assembled in CI, uploaded as an artifact)
+# docs/build_site.py output, for static hosts other than GitHub Pages (not committed)
 _site/
