@@ -20,101 +20,119 @@ downloader behind them.
 
 ## Which branch, and why
 
-`main` holds everything. The application used to live only on a working branch; it is
-now merged into `main`, and `main` is what Pages builds and serves.
+`main` holds everything, and `main` is what Pages serves: the web app lives in `docs/`,
+the folder Pages publishes. Changes reach `main` through pull requests, and the checks
+below run on the pull request first, so nothing broken is merged into the live folder.
 
-## The one repository setting
+## The repository setting: `main` + `/docs`
 
-Pages is currently configured as **"Deploy from a branch"**, which publishes the
-repository root — and the repository root has no `index.html`, so the URL serves the
-README. GitHub will not let a workflow change this setting; it needs repository admin
-rights.
+> Repository → **Settings** → **Pages** → **Build and deployment** →
+> **Source: Deploy from a branch** → **Branch: `main`**, folder **`/docs`** → Save.
 
-**Do this once:**
+That is how this repository is set up. To confirm it from a terminal:
 
-> Repository → **Settings** → **Pages** → **Build and deployment** → **Source** →
-> choose **GitHub Actions**.
+```bash
+gh api repos/DELHIKALADKA/demo/pages --jq '.build_type, .source'
+# legacy
+# {"branch":"main","path":"/docs"}
+```
 
-Nothing else in that panel needs changing. After that, every push to `main` redeploys
-automatically, and the "Run workflow" button in the Actions tab deploys on demand.
-
-Until that setting changes, the workflow's *build* job still runs the tests and builds
-the site, and the *deploy* job fails on purpose with a message naming this exact
-setting (rather than a cryptic 404).
+Do **not** switch the source to "GitHub Actions": no workflow in this repository
+deploys. Changing the setting needs repository admin rights; a workflow cannot do it.
 
 ## How the deployment works
 
-`.github/workflows/pages.yml`, triggered by pushes to `main` and by
-`workflow_dispatch`:
+There is no build step of ours: Pages publishes `docs/` as it is committed.
 
-1. **Check out** the repository, set up Python 3.12 with pip caching.
-2. **Read the Pages configuration** (`actions/configure-pages`), so the build knows the
-   real base path (`/demo/`) instead of assuming it.
-3. **Build the ground-truth fixtures** (`engine/tests/make_fixtures.py`) — five videos
+1. A change is merged (or pushed) to `main`.
+2. GitHub's own **`pages-build-deployment`** workflow publishes the `docs/` folder. It
+   shows up in the Actions tab by itself; it is not a file in this repository. Its
+   default Jekyll pass copies the app's files unchanged (none of them has front
+   matter) and also renders `SHARING.md` as `SHARING.html`.
+3. A minute or two later, <https://delhikaladka.github.io/demo/> serves the new files.
+
+Because whatever is committed goes live, the repository's own workflow,
+`.github/workflows/pages.yml` ("Check the GitHub Pages site (main + /docs)"), tests
+`docs/` on every pull request into `main` and on every push to `main`:
+
+1. **Build the ground-truth fixtures** (`engine/tests/make_fixtures.py`) — five videos
    whose page positions are known.
-4. **Run the engine tests** (`node docs/test/run.mjs`): the same JavaScript detector the
+2. **Run the engine tests** (`node docs/test/run.mjs`): the same JavaScript detector the
    browser app uses, against those fixtures, at three sensitivities. 15/15 must pass.
-5. **Build the site** (`python docs/build_site.py`) into `_site/`, passing the base path
-   reported by Pages.
-6. **Upload** `_site/` as the Pages artifact (`actions/upload-pages-artifact`).
-7. **Deploy** it (`actions/deploy-pages`), in the `github-pages` environment.
+3. **Check `docs/` as Pages serves it** (`python docs/build_site.py --check`) — the
+   checks listed under "What is published".
+4. **Drive the real page in headless Chrome** (`node docs/test/browser.mjs`): `docs/`
+   served under `/demo/`, the sample lecture run end to end (pages found, a page
+   previewed at full size, one un-ticked, a real PDF downloaded and read back, the same
+   video chosen twice, a non-video refused), then the offline copy opened from disk
+   and run the same way.
 
-Permissions are `contents: read`, `pages: write`, `id-token: write` — nothing more. One
-deployment runs at a time (`concurrency: pages`); an in-progress release is never
-cancelled half-way.
+Its only permission is `contents: read`. It does not deploy, so a red ✗ on it means
+"this would publish something broken", not "the deployment is misconfigured".
 
-## What the build produces
+## What is published
 
-`docs/build_site.py` copies the runtime files, regenerates the single-file build, adds
-the hosting extras, then **validates its own output** and fails if anything is wrong:
+The whole `docs/` folder, as committed:
 
 ```
 index.html              the app
 pagesnap-core.js        the detection engine, in JavaScript
 pagenotes-pdf.js        the PDF writer
-pagesnap-offline.html   regenerated: the whole app in one file, for offline use
+pagesnap-offline.html   the whole app in one file, for offline use (generated, see below)
 sample/lecture.mp4      33 s sample video, the "try it" button
 favicon.svg             tab icon
 apple-touch-icon.png    Home Screen icon on iOS
-SHARING.md              note for whoever the link is sent to
-.nojekyll                tells Pages not to run Jekyll
-404.html                sends stray paths back to the app
+SHARING.md              note for whoever the link is sent to (also as SHARING.html)
 ```
 
-Development files (`serve.py`, `test/`, `build_single.py`, `build_site.py`,
-`package.json`) are **not** published.
+The development files in `docs/` (`serve.py`, `test/`, `build_single.py`,
+`build_site.py`, `package.json`) are served as well, because Pages publishes the folder
+as it is. They hold no secrets and the app never loads them.
 
-Three checks run on every build:
+`pagesnap-offline.html` is generated from `index.html` and the two modules by
+`docs/build_single.py`, and Pages serves the committed copy. **After changing
+`index.html`, `pagesnap-core.js` or `pagenotes-pdf.js`, run
+`python3 docs/build_single.py` and commit the regenerated file** — the check fails the
+pull request if you forget.
+
+`python docs/build_site.py --check` fails if any of these is wrong:
 
 - **no root-absolute asset paths.** The site lives at `/demo/`, not at the domain root,
   so every reference must be relative. This is the check that keeps it working from a
   subpath.
-- **every asset the page asks for exists in the output** — a missing file would
-  otherwise surface as a 404 in a student's browser.
+- **every asset the page asks for exists** — a missing file would otherwise surface as
+  a 404 in a student's browser.
 - **nothing calls a server that is not there** (`/api/`, an absolute `fetch()`, or a
   localhost URL).
+- **the committed `pagesnap-offline.html` matches the sources**, is one self-contained
+  file (no imports, no module script, nothing beside it that it points at) and still
+  has every element the app uses.
+
+For any *other* static host, `python3 docs/build_site.py` assembles the same app into
+`_site/` (without the development files, plus a `404.html`) and runs the same checks on
+that. GitHub Pages does not use `_site/`.
 
 ## Deploying a change
 
-```bash
-git push origin main        # the workflow runs, tests pass, the site updates
-```
+1. Open a pull request into `main`; the check workflow runs on it. Wait for it to pass.
+2. Merge it. Pages starts **pages-build-deployment** for the new commit on `main`.
+3. Confirm that run succeeded — Actions → **pages-build-deployment**, or:
 
-To deploy without a new commit: Actions → "Deploy PageSnap to GitHub Pages" →
-**Run workflow**.
+   ```bash
+   gh run list --workflow pages-build-deployment --limit 1
+   ```
+
+   Only then is the change live; reload the site to see it.
+
+To republish without a new commit: Actions → **pages-build-deployment** → the latest
+run → **Re-run all jobs**.
 
 ## Building and checking locally
 
 ```bash
-python3 docs/build_site.py            # -> _site/     (Windows: py docs/build_site.py)
-python3 -m http.server -d _site 8000  # serve it the way Pages would
-# open http://localhost:8000/
-```
-
-Because the build uses relative paths, the same output works from a subpath as well:
-
-```bash
-python3 -m http.server -d . 8000      # then open http://localhost:8000/_site/
+python3 docs/serve.py                  # docs/ at http://localhost:5173/  (Windows: py)
+python3 docs/build_site.py --check     # the same checks a pull request gets
+python3 docs/build_single.py           # after editing the app: regenerate the offline copy
 ```
 
 Run the app's own tests (no server needed):
@@ -122,7 +140,12 @@ Run the app's own tests (no server needed):
 ```bash
 python3 engine/tests/make_fixtures.py   # the five ground-truth videos  (Windows: py)
 node docs/test/run.mjs                  # 15/15 expected
+node docs/test/browser.mjs              # the real page in headless Chrome (Node 22+)
 ```
+
+`browser.mjs` looks for Chrome or Chromium on `PATH` (or set
+`PAGESNAP_CHROME=/path/to/chrome`) and prints SKIPPED if there is none. CI sets
+`PAGESNAP_REQUIRE_BROWSER=1`, so there it cannot skip.
 
 On Windows use `py` rather than `python3` — see [`TROUBLESHOOTING.md`](TROUBLESHOOTING.md).
 
@@ -149,4 +172,4 @@ than a laptop — that is the phone's own speed, not the website's.
 ## Secrets
 
 There are none. The site is static, calls no API, and contains no keys, tokens or
-credentials; the workflow uses only the built-in `GITHUB_TOKEN`.
+credentials; the check workflow uses only the built-in `GITHUB_TOKEN`, read-only.

@@ -1,39 +1,42 @@
-# Publish the PageSnap web app to GitHub Pages.
+# Check the PageSnap web app that GitHub Pages publishes from `main` + `/docs`.
 #
-# What is deployed: the browser-only app in `docs/`, assembled by `docs/build_site.py`
-# into `_site/`. That app does all of its work on the visitor's own device, which is
-# what lets it run on GitHub Pages at all - Pages is static hosting and can serve no
-# Python or Node backend.
+# How the site is published: Settings -> Pages -> Build and deployment -> Source is
+# "Deploy from a branch", branch `main`, folder `/docs`. On every push to main, GitHub's
+# own "pages-build-deployment" workflow publishes the docs/ folder exactly as it is
+# committed - there is no build step in between. This workflow deploys nothing, so it
+# needs no Pages permissions; it makes sure that what is in docs/ is fit to be served,
+# on every pull request into main (before merging publishes it) and on every push to main:
 #
-# The `prototype/` folder (FastAPI + the yt-dlp link importer) is deliberately NOT
-# deployed: it needs a server, so it cannot run here. See DEPLOYMENT.md.
+#   1. the browser engine finds the right pages in the five ground-truth videos;
+#   2. docs/ passes the site checks as it will be served: relative paths only, nothing
+#      missing, no server calls, and the offline single-file copy matches the
+#      sources (Pages serves the committed copy, so a stale one goes live);
+#   3. the real page, served under /demo/ as Pages serves it, works end to end in
+#      headless Chrome - and so does the offline copy, opened from disk.
 #
-# Before publishing, this runs the project's own engine test suite against the very
-# code being deployed: the same five ground-truth videos, checked with the JavaScript
-# detector that the browser app uses. A failure stops the deployment.
+# The prototype/ folder (FastAPI + the yt-dlp link importer) is not part of the site:
+# it needs a server, so it cannot run on GitHub Pages. See DEPLOYMENT.md.
 
-name: Deploy PageSnap to GitHub Pages
+name: Check the GitHub Pages site (main + /docs)
 
 on:
   push:
     branches: [main]
+  pull_request:
+    branches: [main]
   workflow_dispatch:        # the Run workflow button in the Actions tab
 
-# Pages needs these; nothing else is granted.
+# Read-only: this workflow tests, and GitHub's Pages workflow does the publishing.
 permissions:
   contents: read
-  pages: write
-  id-token: write
 
-# One deployment at a time. In-progress runs are not cancelled, so a release that has
-# started always finishes rather than leaving the site half-published.
 concurrency:
-  group: pages
-  cancel-in-progress: false
+  group: pages-check-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
-  build:
-    name: Test the engine, then build the site
+  check:
+    name: Test docs/ as GitHub Pages will serve it
     runs-on: ubuntu-latest
     steps:
       - name: Check out the repository
@@ -45,17 +48,17 @@ jobs:
           python-version: "3.12"
           cache: pip
 
+      # The browser test drives Chrome with the WebSocket client built into Node 22+.
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
       # The fixtures are generated videos with known page positions, so they are built
       # here rather than committed. imageio-ffmpeg brings its own ffmpeg binary, so the
       # test does not depend on what the runner image happens to ship.
       - name: Install the test dependencies
         run: python -m pip install --upgrade pip numpy pillow imageio-ffmpeg
-
-      # Reads the repository's Pages configuration, so the build knows the path the
-      # site is published under (/demo/ for this project) instead of assuming it.
-      - name: Read the Pages configuration
-        id: pages
-        uses: actions/configure-pages@v5
 
       - name: Build the ground-truth fixture videos
         run: python engine/tests/make_fixtures.py
@@ -63,38 +66,11 @@ jobs:
       - name: Run the browser engine against the same fixtures
         run: node docs/test/run.mjs
 
-      - name: Build the deployable site
-        run: |
-          echo "Publishing under base path: ${{ steps.pages.outputs.base_path }}/"
-          python docs/build_site.py --base-path "${{ steps.pages.outputs.base_path }}/"
+      - name: Check docs/ exactly as GitHub Pages serves it
+        run: python docs/build_site.py --check
 
-      - name: Upload the built site
-        uses: actions/upload-pages-artifact@v3
-        with:
-          path: _site
-
-  deploy:
-    name: Deploy to GitHub Pages
-    needs: build
-    runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    steps:
-      # deploy-pages can only publish when the repository is set to deploy from GitHub
-      # Actions. If it is still on "Deploy from a branch", say exactly what to change
-      # rather than letting the deployment fail with an opaque 404.
-      - name: Check that Pages is set to deploy from GitHub Actions
+      # The runner image ships Google Chrome; requiring it means this step cannot skip.
+      - name: Drive the real page in headless Chrome
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          build_type=$(gh api "repos/${{ github.repository }}/pages" --jq .build_type 2>/dev/null || echo unknown)
-          echo "Pages build type: $build_type"
-          if [ "$build_type" != "workflow" ]; then
-            echo "::error title=One repository setting is left::Open Settings -> Pages -> Build and deployment -> Source and choose \"GitHub Actions\" (it is currently \"Deploy from a branch\"). Then re-run this workflow: the site will publish to https://${{ github.repository_owner }}.github.io/$(basename ${{ github.repository }})/"
-            exit 1
-          fi
-
-      - name: Deploy
-        id: deployment
-        uses: actions/deploy-pages@v4
+          PAGESNAP_REQUIRE_BROWSER: "1"
+        run: node docs/test/browser.mjs
