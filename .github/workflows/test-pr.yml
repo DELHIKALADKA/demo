@@ -1,0 +1,61 @@
+
+name: Test PageSnap Pull Request
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Run app and browser tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: docs/package-lock.json
+
+      - name: Install test dependencies
+        run: python -m pip install --upgrade pip numpy pillow imageio-ffmpeg pypdf
+
+      - name: Install browser-test dependency
+        run: npm ci --prefix docs
+
+      - name: Generate engine fixtures
+        run: python engine/tests/make_fixtures.py
+
+      - name: Generate test media
+        run: python docs/test/make_media.py
+
+      - name: Run core tests
+        run: node docs/test/run.mjs
+
+      - name: Run browser tests
+        run: node docs/test/browser.mjs
+
+      - name: Build offline copy
+        run: python docs/build_single.py
+
+      - name: Run build guards
+        run: python docs/test/test_build_guards.py
+
+      - name: Build website
+        run: python docs/build_site.py --base-path /demo/
+
+      - name: Test built website
+        run: node docs/test/site.mjs --no-build --base /demo/
