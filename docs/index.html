@@ -8,6 +8,9 @@
      The touch icon is what an iPhone uses if this is added to the Home Screen. -->
 <link rel="icon" href="./favicon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="./apple-touch-icon.png">
+<!-- Relative too: on GitHub Pages this resolves to /demo/manifest.webmanifest,
+     and in development to /manifest.webmanifest. Both are the same file. -->
+<link rel="manifest" href="./manifest.webmanifest">
 <meta name="apple-mobile-web-app-title" content="PageSnap">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <title>PageSnap — turn a lecture video into notes PDF</title>
@@ -33,8 +36,9 @@
         padding:18px;margin-bottom:14px}
   .drop{border:1.5px dashed #39404f;border-radius:var(--radius);padding:30px 18px;text-align:center;
         background:var(--panel2);transition:.15s;cursor:pointer}
-  .drop:hover{border-color:#4a5near;border-color:#4a5365}
+  .drop:hover{border-color:#4a5365}
   .drop.hot{border-color:var(--accent);background:#241a19}
+  .drop:focus-visible{outline:3px solid var(--accent2);outline-offset:3px}
   .drop b{font-size:16px;display:block;margin-bottom:5px}
   .drop span{color:var(--dim);font-size:13.5px}
   .btn{appearance:none;border:0;border-radius:11px;padding:12px 18px;font-size:15px;font-weight:600;
@@ -62,25 +66,69 @@
   .page{background:var(--panel2);border:1px solid var(--line);border-radius:12px;overflow:hidden;
         position:relative;cursor:pointer}
   .page img{display:block;width:100%;background:#242832}
+  .shot{display:block;width:100%;padding:0;border:0;background:none;cursor:zoom-in;font:inherit;
+        color:inherit}
+  .shot:focus-visible{outline:3px solid var(--accent2);outline-offset:-3px}
   .page.off{opacity:.42}
   .page .meta{display:flex;justify-content:space-between;padding:7px 9px;font-size:12px;color:var(--dim)}
   .tick{position:absolute;top:8px;left:8px;width:25px;height:25px;border-radius:8px;
         background:rgba(10,12,16,.72);border:1px solid #454c5c;display:grid;place-items:center;
-        cursor:pointer;font-size:14px;color:transparent}
+        cursor:pointer;font-size:14px;color:transparent;padding:0;font-family:inherit;line-height:1}
   .tick.on{background:var(--good);border-color:var(--good);color:#06231a}
+  .tick:focus-visible{outline:3px solid var(--accent2);outline-offset:2px}
+  /* The video is never part of the layout, but it must stay *rendered*: iOS Safari
+     hands a display:none video back as an empty frame, which would make every
+     screenshot black. Parked here instead - invisible, 2px, still painted. */
+  .video-park{position:fixed;left:0;bottom:0;width:2px;height:2px;overflow:hidden;
+              opacity:.01;pointer-events:none;z-index:-1}
   .err{background:#2a1618;border:1px solid #5c2a2c;color:#ffb4ac;border-radius:11px;padding:13px 15px;
        font-size:14px;margin-top:12px}
   .note{background:#1b2029;border:1px solid #2f3948;border-radius:11px;padding:13px 15px;font-size:13.5px;
         color:var(--dim);margin-top:14px}
   .note b{color:var(--ink)}
   .foot{color:var(--dim);font-size:12.8px;text-align:center;margin-top:30px;line-height:1.8}
+  .foot a{color:var(--accent2)}
   .pill{display:inline-block;background:var(--panel2);border:1px solid var(--line);border-radius:99px;
         padding:3px 11px;font-size:12px;color:var(--dim);margin:0 3px}
   h2.sec{font-size:15px;margin:0 0 14px;font-weight:600}
   video{width:100%;border-radius:12px;background:#000;margin-top:14px}
+  .steps{color:var(--dim);font-size:13px;line-height:1.7;margin:0 0 20px;padding-left:22px}
+  .steps li{margin-bottom:2px}
+  .stepno{display:inline-grid;place-items:center;width:22px;height:22px;border-radius:7px;
+          background:var(--panel2);border:1px solid var(--line);color:var(--accent2);
+          font-size:12.5px;margin-right:8px;vertical-align:1px}
+  /* the PDF box: one row per picture, in the order the PDF will use */
+  .exlist{margin-top:12px;display:flex;flex-direction:column;gap:8px}
+  .exrow{display:flex;align-items:center;gap:10px;background:var(--panel2);
+         border:1px solid var(--line);border-radius:11px;padding:8px 10px}
+  .exrow.off{opacity:.5}
+  .exrow.chosen{border-color:var(--accent)}
+  .exrow img{width:64px;height:40px;object-fit:cover;border-radius:7px;background:#242832;flex:0 0 auto}
+  .exnum{color:var(--dim);font-size:12.5px;min-width:1.4em;text-align:right;flex:0 0 auto}
+  .exmeta{font-size:12.5px;color:var(--dim);flex:1 1 auto;min-width:0;
+          overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .exbtns{display:flex;gap:4px;flex:0 0 auto}
+  .exm{appearance:none;border:1px solid var(--line);background:var(--panel);color:var(--ink);
+       border-radius:9px;width:38px;height:38px;font-size:15px;cursor:pointer;
+       display:grid;place-items:center;font-family:inherit}
+  .exm:hover:not(:disabled){background:#252a35}
+  .exm:disabled{opacity:.35;cursor:not-allowed}
+  .res{color:var(--dim);font-size:11.5px;padding:0 9px 8px}
   .lb{position:fixed;inset:0;background:rgba(6,8,11,.94);display:none;place-items:center;padding:18px;z-index:50}
   .lb.on{display:grid}
-  .lb img{max-width:100%;max-height:88vh;border-radius:10px;box-shadow:0 20px 60px rgba(0,0,0,.6)}
+  .lb img{max-width:100%;max-height:78vh;border-radius:10px;box-shadow:0 20px 60px rgba(0,0,0,.6)}
+  .lb-inner{position:relative;display:grid;justify-items:center;gap:12px;max-width:100%}
+  .lb-close{position:absolute;top:-8px;right:-8px;width:44px;height:44px;border-radius:50%;
+            border:1px solid var(--line);background:var(--panel2);color:var(--ink);font-size:19px;
+            line-height:1;cursor:pointer;display:grid;place-items:center;padding:0;font-family:inherit}
+  .lb-bar{display:flex;align-items:center;gap:14px}
+  .lb-bar button{width:44px;height:44px;border-radius:11px;border:1px solid var(--line);
+                 background:var(--panel2);color:var(--ink);font-size:20px;line-height:1;cursor:pointer;
+                 padding:0;font-family:inherit}
+  .lb-bar button:disabled{opacity:.35;cursor:not-allowed}
+  .lb-bar button:focus-visible,.lb-close:focus-visible{outline:3px solid var(--accent2);outline-offset:2px}
+  .lb-count{color:var(--dim);font-size:13px;min-width:110px;text-align:center}
+  body.lb-open{overflow:hidden}
 </style>
 </head>
 <body>
@@ -91,14 +139,27 @@
   </header>
   <p class="tagline">Turn a video of notes into a PDF — one screenshot per page, nothing else.
     Runs entirely in your browser.</p>
+  <ol class="steps">
+    <li>Choose a video from this device (or paste a link to see what can be done with it)</li>
+    <li>PageSnap finds the pages</li>
+    <li>Check the pictures, tick the ones you want, reorder or remove them</li>
+    <li>Optionally capture a frame from a video, or swap one picture for it</li>
+    <li>Pick the paper, then download the PDF</li>
+  </ol>
 
   <!-- 1 ─ pick a video -->
   <section class="card" id="step-pick">
-    <div class="drop" id="drop">
+    <h2 class="sec"><span class="stepno">1</span> Choose the media</h2>
+    <div class="drop" id="drop" role="button" tabindex="0"
+         aria-label="Choose a video from this device">
       <b>Choose the video from this device</b>
-      <span>tap here — mp4, mov, mkv, webm</span>
+      <!-- Filled in by the script from what this browser really reports it can play:
+           the old text promised "mp4, mov, mkv, webm" to everyone, and Safari cannot
+           play Matroska at all. -->
+      <span id="formats">tap here — checking what this browser can play…</span>
       <input type="file" id="file" accept="video/*" hidden>
     </div>
+    <p class="hint" id="format-note"></p>
 
     <details style="margin-top:16px">
       <summary style="cursor:pointer;color:var(--dim);font-size:13.5px">Options</summary>
@@ -122,8 +183,6 @@
       </div>
     </details>
 
-    <video id="video" playsinline muted preload="auto" style="display:none"></video>
-
     <div class="row" style="margin-top:12px">
       <button class="btn ghost" id="sample">Try it with a sample lecture video</button>
       <span class="hint" style="margin:0">33 seconds, 4 pages of notes</span>
@@ -131,16 +190,29 @@
 
     <div class="note" id="link-note">
       <b>Have an Instagram / Facebook / YouTube link instead of a file?</b><br>
-      A web page is not allowed to download videos from those sites — the browser does not
-      expose it, and no website can work around that. Save the video to your device first
-      (or use the phone app, which does the download itself).
+      Paste it below and PageSnap will say exactly what it is and what can be done with
+      it. This page has no server behind it, so it cannot fetch media from those sites —
+      the browser blocks it, and no amount of JavaScript changes that. Where a link can
+      be fetched at all, the app's own server does it; everything else needs the file.
     </div>
-    <div class="err" id="err" style="display:none"></div>
+
+    <div style="margin-top:14px">
+      <label class="field" for="link">Paste a link</label>
+      <div class="row" style="align-items:stretch">
+        <input type="text" id="link" inputmode="url" autocomplete="off" spellcheck="false"
+               placeholder="https://www.youtube.com/watch?v=… or an Instagram or Facebook link"
+               style="flex:1 1 260px;min-width:0">
+        <button class="btn ghost" id="link-check" type="button">Check this link</button>
+      </div>
+      <div id="link-out" class="note" style="display:none" role="status" aria-live="polite"></div>
+    </div>
+    <div class="err" id="err" style="display:none" role="alert"></div>
   </section>
 
   <!-- 2 ─ progress -->
   <section class="card" id="step-work" style="display:none">
-    <div class="stage" id="stage"><b>Getting ready…</b></div>
+    <h2 class="sec"><span class="stepno">2</span> Finding the pages</h2>
+    <div class="stage" id="stage" role="status" aria-live="polite"><b>Getting ready…</b></div>
     <div class="bar"><i id="fill"></i></div>
     <div class="stage" id="stage2"></div>
     <div class="hint">Screenshots are taken only where a page changed <i>and</i> finished being
@@ -149,6 +221,7 @@
 
   <!-- 3 ─ review -->
   <section class="card" id="step-review" style="display:none">
+    <h2 class="sec"><span class="stepno">3</span> Review, reorder, export</h2>
     <div class="row" style="justify-content:space-between;align-items:flex-end">
       <div>
         <h2 class="sec" id="summary"></h2>
@@ -169,6 +242,7 @@
 
     <button class="btn big" id="download" style="margin-top:16px">Download the PDF</button>
     <div class="hint" id="privacy">Everything ran on this device. Nothing was uploaded anywhere.</div>
+    <div class="hint" id="save-note" role="status" aria-live="polite" style="display:none"></div>
 
     <div class="row" style="margin-top:14px">
       <button class="btn ghost" id="startover">Start over</button>
@@ -176,13 +250,108 @@
     </div>
   </section>
 
+  <!-- 4 ─ the PDF export box: the selected pictures, their order, and the paper -->
+  <section class="card" id="export-box" style="display:none">
+    <h2 class="sec"><span class="stepno">4</span> PDF box</h2>
+    <div class="stage" id="export-count" role="status" aria-live="polite"></div>
+    <div id="export-list" class="exlist"></div>
+
+    <div class="grid2" style="margin-top:16px">
+      <div>
+        <label class="field" for="pagesize">Paper</label>
+        <select id="pagesize">
+          <option value="a4" selected>A4</option>
+          <option value="letter">Letter</option>
+          <option value="exact">Image size — no paper, no scaling</option>
+        </select>
+      </div>
+      <div>
+        <label class="field" for="orient">Orientation</label>
+        <select id="orient">
+          <option value="auto" selected>Match each picture</option>
+          <option value="portrait">Portrait</option>
+          <option value="landscape">Landscape</option>
+        </select>
+      </div>
+      <div>
+        <label class="field" for="fitmode">How the picture sits on the page</label>
+        <select id="fitmode">
+          <option value="contain" selected>Fit to the page — keep its shape</option>
+          <option value="actual">Actual size — 1 pixel per point, never enlarged</option>
+          <option value="stretch">Fill the page — changes its shape</option>
+        </select>
+      </div>
+      <div>
+        <label class="field" for="embed">Picture format in the PDF</label>
+        <select id="embed">
+          <option value="jpeg" selected>JPEG — smallest file (as captured)</option>
+          <option value="lossless">Lossless — keeps transparency, much bigger file</option>
+        </select>
+      </div>
+    </div>
+    <div class="hint" id="embed-note"></div>
+    <div class="hint" id="export-note" role="status" aria-live="polite"></div>
+  </section>
+
+  <!-- 5 ─ capture a frame, or swap one picture for another -->
+  <section class="card" id="capture-box" style="display:none">
+    <h2 class="sec"><span class="stepno">5</span> Capture a Frame / Replace a Photo</h2>
+
+    <div class="row" style="margin-top:4px">
+      <button class="btn ghost" id="cap-use-loaded" type="button">Use the video already open</button>
+      <label class="btn ghost" for="cap-file" style="cursor:pointer;margin:0">Choose another video</label>
+      <input type="file" id="cap-file" accept="video/*" hidden>
+    </div>
+    <div class="hint" id="cap-video" role="status" aria-live="polite">No video is open for frame capture yet.</div>
+
+    <div class="row" style="margin-top:12px;align-items:flex-end">
+      <div style="flex:1 1 150px">
+        <label class="field" for="cap-time">Time in the video (H:MM.mmm)</label>
+        <input type="text" id="cap-time" inputmode="decimal" autocomplete="off"
+               placeholder="1:23.500" style="width:100%">
+      </div>
+      <button class="btn ghost" id="cap-preview" type="button">Preview this frame</button>
+      <button class="btn" id="cap-go" type="button">Capture Frame</button>
+    </div>
+    <div class="hint" id="cap-status" role="status" aria-live="polite"></div>
+
+    <div id="cap-stage" style="display:none;margin-top:14px">
+      <img id="cap-img" alt="The frame at the chosen time" style="max-width:100%;border-radius:12px;border:1px solid var(--line)">
+      <div class="hint" id="cap-meta"></div>
+      <div class="row" style="margin-top:10px">
+        <button class="btn ghost" id="cap-replace" type="button">Replace the chosen picture</button>
+        <button class="btn ghost" id="cap-undo" type="button" style="display:none">Undo the replacement</button>
+      </div>
+    </div>
+    <div class="hint" id="cap-target" style="margin-top:12px"></div>
+  </section>
+
+  <!-- The one <video> element. It lives outside the step cards on purpose: while a job
+       runs the pick card is hidden, and a hidden video gives iOS Safari nothing to
+       draw. Parked (invisible, rendered) it keeps producing frames on every browser. -->
+  <div class="video-park" aria-hidden="true">
+    <video id="video" playsinline muted preload="auto"></video>
+  </div>
+
   <p class="foot">
     <span class="pill">no cloud</span><span class="pill">no account</span><span class="pill">no database</span><br>
-    Your video never leaves your device. This page has no server behind it.
+    Your video never leaves your device. This page has no server behind it.<br>
+    <a href="./pagesnap-offline.html">Save this app as a single file</a> — one file,
+    opens by double-click, works with no internet afterwards.
   </p>
 </div>
 
-<div class="lb" id="lightbox"><img id="lightbox-img" alt=""></div>
+<div class="lb" id="lightbox" role="dialog" aria-modal="true" aria-label="Page at full size">
+  <div class="lb-inner">
+    <button class="lb-close" id="lb-close" type="button" aria-label="Close the full-size view">✕</button>
+    <img id="lightbox-img" alt="">
+    <div class="lb-bar">
+      <button id="lb-prev" type="button" aria-label="Previous page">‹</button>
+      <span class="lb-count" id="lb-count" aria-live="polite"></span>
+      <button id="lb-next" type="button" aria-label="Next page">›</button>
+    </div>
+  </div>
+</div>
 
 <!-- If someone saves this page and double-clicks it, the browser blocks module
      scripts over file:// and the page would look broken. Say so plainly, and point
@@ -203,15 +372,32 @@ if (location.protocol === 'file:') {
 </script>
 
 <script type="module">
-import { detect, sampleVideo, signature, REASONS, seekTo } from './pagesnap-core.js';
-import { buildPdf, canvasToJpeg, safeFilename } from './pagenotes-pdf.js';
+import { detect, sampleVideo, signature, REASONS, seekTo, grabFrame } from './pagesnap-core.js';
+import { buildPdf, canvasToJpeg, safeFilename, encodeLossless } from './pagenotes-pdf.js';
+import {
+  classifyUrl, parseTimecode, checkTimecode, formatTimecode,
+  describeResolution, qualityNote, humanBytes,
+} from './pagesnap-media.js';
 
 const $ = (id) => document.getElementById(id);
 const video = $('video');
+const SAMPLE_LABEL = 'Try it with a sample lecture video';
 
 let file = null;
-let pages = [];         // {time, reason, jpeg, width, height, thumb, keep}
+let pages = [];         // {time, reason, blob, url, width, height, keep}
 let noteTitle = '';
+let report = null;      // the detection report, kept so the summary can name the video's length
+let focused = 0;        // the page the full-size view is looking at
+let videoUrl = null;    // the blob URL the <video> is playing, so it can be released
+let returnFocusTo = null;
+// The picture the last click selected, so the PDF box and the replace flow agree on
+// which one "the chosen picture" means even after a removal shuffles the list.
+let chosen = 0;
+// One-step undo for a photo replacement: {index, page}. Only ever one deep, because
+// "Undo" that keeps undoing things from ten minutes ago surprises people.
+let swapBack = null;
+// The frame waiting to be captured or used as a replacement, from the preview.
+let pendingFrame = null;
 
 function show(step) {
   $('step-pick').style.display = step === 'pick' ? '' : 'none';
@@ -228,59 +414,170 @@ function stage(text, fraction) {
   $('fill').style.width = `${Math.round((fraction || 0) * 100)}%`;
 }
 
+// ── what this browser can really play ──────────────────────────────────────
+// The old line promised every visitor "mp4, mov, mkv, webm". That is not true of any
+// one browser: Safari cannot play Matroska (mkv) at all, and neither can Firefox.
+// So ask the browser itself and print its answer, plus the honest caveat that it is
+// the codec inside a file - not the extension - that decides.
+const FORMATS = [
+  { label: 'mp4', type: 'video/mp4; codecs="avc1.42E01E"' },
+  { label: 'm4v', type: 'video/x-m4v' },
+  { label: 'mov', type: 'video/quicktime' },
+  { label: 'webm', type: 'video/webm; codecs="vp8"' },
+  { label: 'webm (VP9)', type: 'video/webm; codecs="vp9"' },
+  { label: 'ogv', type: 'video/ogg; codecs="theora"' },
+  { label: 'mkv', type: 'video/x-matroska; codecs="avc1.42E01E"' },
+];
+function describeFormats() {
+  const probe = document.createElement('video');
+  const plays = (type) => {
+    try { return probe.canPlayType(type) !== ''; } catch (_) { return false; }
+  };
+  const named = [];
+  for (const format of FORMATS) {
+    if (plays(format.type) && !named.includes(format.label)) named.push(format.label);
+  }
+  $('formats').textContent = named.length
+    ? `tap here — this browser can play ${named.join(', ')}`
+    : 'tap here — choose a video file from this device';
+
+  const parts = ['The browser decides from the file itself, so a video that is not '
+    + 'named above may still open — and one that is can still fail if the codec inside '
+    + 'it is unusual (an iPhone recording in HEVC/H.265, for example).'];
+  if (!plays('video/x-matroska; codecs="avc1.42E01E"')) {
+    parts.push('This browser does not support mkv (Matroska).');
+  }
+  $('format-note').textContent = parts.join(' ');
+}
+describeFormats();
+
 // ── pick a file ────────────────────────────────────────────────────────────
-$('drop').onclick = () => $('file').click();
-$('file').onchange = (e) => {
-  const chosen = e.target.files[0];
-  // Clear the input, so picking the same video again (after "Start over", or to retry
-  // it with another setting) still counts as a change and runs.
-  e.target.value = '';
-  if (chosen) run(chosen);
+const drop = $('drop');
+drop.onclick = () => $('file').click();
+drop.onkeydown = (event) => {
+  if (event.key === 'Enter' || event.key === ' ' || event.key === 'Spacebar') {
+    event.preventDefault();
+    $('file').click();
+  }
 };
+$('file').onchange = (event) => { if (event.target.files[0]) run(event.target.files[0]); };
 ['dragenter', 'dragover'].forEach((ev) =>
-  $('drop').addEventListener(ev, (e) => { e.preventDefault(); $('drop').classList.add('hot'); }));
+  drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.add('hot'); }));
 ['dragleave', 'drop'].forEach((ev) =>
-  $('drop').addEventListener(ev, (e) => { e.preventDefault(); $('drop').classList.remove('hot'); }));
-$('drop').addEventListener('drop', (e) => { if (e.dataTransfer.files[0]) run(e.dataTransfer.files[0]); });
+  drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.remove('hot'); }));
+drop.addEventListener('drop', (e) => { if (e.dataTransfer.files[0]) run(e.dataTransfer.files[0]); });
 
 // The sample is the same synthetic lecture the engine's tests use, so a first-time
-// visitor can see the whole thing work without hunting for a video. The offline
-// single-file copy has no sample beside it, so it has no such button.
+// visitor can see the whole thing work without hunting for a video.
+//
+// Optional on purpose: the single-file build (pagesnap-offline.html) takes the sample
+// button out - it travels with no video beside it - and without this guard that build
+// threw "Cannot set properties of null" and did nothing at all.
 const sampleButton = $('sample');
 if (sampleButton) sampleButton.onclick = async () => {
-  sampleButton.disabled = true;
-  sampleButton.textContent = 'Loading the sample…';
+  const button = sampleButton;
+  button.disabled = true;
+  button.textContent = 'Loading the sample…';
+  // Clear whatever the last attempt said. Without this the old message sat there
+  // while the new download ran, and if the new failure said the same thing you could
+  // not tell whether anything had been retried at all.
+  $('err').style.display = 'none';
+  $('err').textContent = '';
   try {
-    const response = await fetch('./sample/lecture.mp4');
-    if (!response.ok) throw new Error(`the sample answered HTTP ${response.status}`);
+    let response;
+    try {
+      response = await fetch('./sample/lecture.mp4');
+    } catch (error) {
+      throw new Error('The sample video could not be downloaded — this device looks '
+        + 'offline. Choose a video saved on the device instead.');
+    }
+    // An answer is not a success: a missing file comes back as a 404 page with a body,
+    // and handing that body to the video element produced a confusing "could not be
+    // read as a video" message. Check the status first.
+    if (!response.ok) {
+      throw new Error('The sample video is missing from this copy of the page (the '
+        + `server answered ${response.status}). Choose a video from the device instead.`);
+    }
     const blob = await response.blob();
-    await run(new File([blob], 'sample-lecture.mp4', { type: 'video/mp4' }));
+    if (blob.size < 4096 || (blob.type && !blob.type.startsWith('video/'))) {
+      throw new Error('The sample video came back damaged or incomplete — what arrived '
+        + 'is not a readable video file. Choose a video from the device instead.');
+    }
+    const name = blob.type.includes('webm') ? 'sample-lecture.webm' : 'sample-lecture.mp4';
+    await run(new File([blob], name, { type: blob.type || 'video/mp4' }));
   } catch (error) {
-    fail('Could not load the sample video.');
+    fail(error.message || 'Could not load the sample video.');
   } finally {
-    sampleButton.disabled = false;
-    sampleButton.textContent = 'Try it with a sample lecture video';
+    button.disabled = false;
+    button.textContent = SAMPLE_LABEL;
   }
 };
 
+// ── the link box ───────────────────────────────────────────────────────────
+// This does the part a static page genuinely can do: work out what the link is.
+// It cannot fetch the media, and it says so with the specific reason for that
+// platform instead of a generic shrug - and points at the two things that do work.
+$('link-check').onclick = () => {
+  const raw = $('link').value;
+  const out = $('link-out');
+  const info = classifyUrl(raw);
+  out.style.display = '';
+  if (!info.ok) {
+    out.innerHTML = `<b>That link cannot be used.</b><br>${escapeHtml(info.error)}`;
+    return;
+  }
+  const yields = info.yields === 'photos'
+    ? 'It is a photo post, so the useful output would be the pictures themselves.'
+    : info.yields === 'frames'
+      ? 'It is a video, so the useful output is frames captured from it — which is what this page does with a video file.'
+      : 'There is no video or picture in it to work with.';
+  const canDo = info.extractable
+    ? 'This page can fetch it.'
+    : 'This page cannot fetch it.';
+  out.innerHTML = `<b>That is ${escapeHtml(info.label)}.</b><br>${yields}<br>`
+    + `${canDo} ${escapeHtml(info.limit)}<br><b>What to do instead:</b> ${escapeHtml(info.alternative)}`;
+};
+
+/** The link text goes into innerHTML, so it has to be inert first. */
+function escapeHtml(value) {
+  return String(value == null ? '' : value).replace(/[&<>"']/g, (c) => (
+    { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]
+  ));
+}
+
 // ── the whole job ──────────────────────────────────────────────────────────
 async function run(chosen) {
+  resetPages();
   file = chosen;
-  pages = [];
   $('err').style.display = 'none';
+  $('save-note').style.display = 'none';
   show('work');
+  stage('Reading the video…', 0.02);
   noteTitle = file.name.replace(/\.[^.]+$/, '').slice(0, 60) || 'notes';
 
-  let url = null;
   try {
-    url = URL.createObjectURL(file);
+    const url = URL.createObjectURL(file);
+    videoUrl = url;
     video.src = url;
     await new Promise((resolve, reject) => {
       video.onloadedmetadata = resolve;
-      video.onerror = () => reject(new Error('This file could not be read as a video.'));
+      // Name the file and the usual cause: "could not be read as a video" on its own
+      // leaves someone with no idea what to do next.
+      video.onerror = () => reject(new Error(`"${file.name}" could not be read as a video. `
+        + 'The file may be damaged, or it may use a codec this browser does not have — an '
+        + 'iPhone recording in HEVC/H.265 is the common case. An mp4 with H.264 opens '
+        + 'everywhere.'));
     });
-    if (!video.videoWidth) throw new Error('That file has no video track.');
-    const duration = isFinite(video.duration) ? video.duration : 0;
+    if (!video.videoWidth) {
+      throw new Error(`"${file.name}" has no picture in it — it may be an audio file, or `
+        + 'a video this browser cannot decode.');
+    }
+    const duration = video.duration;
+    if (!isFinite(duration) || duration <= 0) {
+      throw new Error(`The length of "${file.name}" could not be read — the file may be a `
+        + 'stream or an unfinished download. Save the video to the device first, then try '
+        + 'again.');
+    }
     if (duration > 20 * 60) {
       throw new Error('That video is longer than 20 minutes. A browser has to seek through it frame by '
         + 'frame, which would take too long here — the phone app handles long lectures.');
@@ -295,7 +592,7 @@ async function run(chosen) {
     // 2. find the page changes
     stage('Finding the page changes…', 0.62);
     const preset = $('sens').value;
-    const report = detect(sigs, preset);
+    report = detect(sigs, preset);
     if (!report.pages.length) {
       fail('No pages were found in that video. If it is a recording of someone writing, try the '
          + '"Eager" setting — or the video may be a single page that never changes.');
@@ -315,78 +612,86 @@ async function run(chosen) {
       capture.width = w; capture.height = h;
       capture.getContext('2d').drawImage(video, 0, 0, w, h);
 
+      // The full-resolution picture is kept once, as a blob: the grid shows it scaled
+      // down by CSS and the full-size view shows the same picture at 100%. One copy,
+      // so the two can never disagree, and the PDF is written from these bytes.
       const jpeg = await canvasToJpeg(capture, quality);
-      pages.push({ time: page.time, reason: page.reason, jpeg, width: w, height: h,
-                   thumb: thumbnailOf(capture), keep: true });
+      const blob = new Blob([jpeg], { type: 'image/jpeg' });
+      pages.push({
+        time: page.time, reason: page.reason, width: w, height: h,
+        blob, url: URL.createObjectURL(blob), keep: true,
+      });
     }
 
     stage('Done', 1);
-    renderReview(report);
+    renderReview();
     show('review');
   } catch (error) {
     fail(error.message || 'Something went wrong while reading that video.');
   } finally {
-    // Release the video on every way out - also when it failed or had no pages.
-    if (url) URL.revokeObjectURL(url);
+    // Deliberately *not* revoked here any more: the capture box seeks this same video
+    // after the job, and a revoked blob URL cannot be seeked. The file was already in
+    // memory as a File, so nothing extra is held; Start over and opening another video
+    // both release it.
+    void 0;
   }
 }
 
-function thumbnailOf(canvas, width = 300) {
-  const ratio = width / canvas.width;
-  const small = document.createElement('canvas');
-  small.width = width;
-  small.height = Math.max(1, Math.round(canvas.height * ratio));
-  small.getContext('2d').drawImage(canvas, 0, 0, small.width, small.height);
-  return small.toDataURL('image/jpeg', 0.72);
-}
-
 // ── review ─────────────────────────────────────────────────────────────────
-let videoSeconds = 0;   // kept from the last run, so the summary still shows it after a tick
-
-function renderReview(report) {
-  videoSeconds = (report && report.duration) || 0;
+function renderReview() {
   const grid = $('pages');
   grid.innerHTML = '';
   pages.forEach((page, i) => {
     const el = document.createElement('div');
     el.className = 'page' + (page.keep ? '' : ' off');
     el.innerHTML = `
-      <span class="tick ${page.keep ? 'on' : ''}">✓</span>
-      <img src="${page.thumb}" alt="page ${i + 1}">
-      <div class="meta"><span>#${i + 1}</span><span>${page.time.toFixed(1)}s</span></div>`;
-    el.querySelector('.tick').onclick = (e) => { e.stopPropagation(); toggle(i); };
-    // Looking at a page must not change whether it is kept.
-    el.querySelector('img').onclick = (e) => { e.stopPropagation(); openPreview(page, i); };
-    el.onclick = () => toggle(i);
+      <button class="tick ${page.keep ? 'on' : ''}" type="button"
+              aria-pressed="${page.keep ? 'true' : 'false'}"
+              aria-label="Keep page ${i + 1}">✓</button>
+      <button class="shot" type="button"
+              aria-label="Show page ${i + 1} of ${pages.length} at full size">
+        <img src="${page.url}" alt="Page ${i + 1} of the video" loading="lazy" decoding="async">
+      </button>
+      <div class="meta"><span>#${i + 1}</span><span>${page.time.toFixed(1)}s</span></div>
+      <div class="res" title="The size of the picture stored in the PDF">${describeResolution(page.width, page.height)}</div>`;
+    el.querySelector('.tick').onclick = (e) => { e.stopPropagation(); focused = i; chosen = i; toggle(i); };
+    el.querySelector('.shot').onclick = (e) => { e.stopPropagation(); focused = i; chosen = i; openFull(i); };
+    el.onclick = (e) => {
+      // The picture and the tick do their own thing; anywhere else on the card keeps
+      // or drops the page, exactly as before - and every path records which picture
+      // the boxes further down are talking about.
+      if (e.target.closest('.shot') || e.target.closest('.tick')) return;
+      focused = i; chosen = i;
+      toggle(i);
+    };
     grid.appendChild(el);
   });
+  focused = Math.max(0, pages.findIndex((p) => p.keep));
+  chosen = Math.min(chosen, Math.max(0, pages.length - 1));
+  $('bigger').style.display = '';
   updateSummary();
   $('title').value = noteTitle;
   updateFilename();
-}
-
-// The preview shows the capture that goes into the PDF, at full size, so a student
-// can check it is readable - not the 300 px thumbnail.
-let previewUrl = null;
-function openPreview(page, i) {
-  closePreview();
-  previewUrl = URL.createObjectURL(new Blob([page.jpeg], { type: 'image/jpeg' }));
-  $('lightbox-img').src = previewUrl;
-  $('lightbox-img').alt = `page ${i + 1}, full size`;
-  $('lightbox').classList.add('on');
-}
-function closePreview() {
-  $('lightbox').classList.remove('on');
-  if (previewUrl) { URL.revokeObjectURL(previewUrl); previewUrl = null; }
+  renderExport();
+  // The two boxes below the gallery only make sense once there are pictures.
+  $('export-box').style.display = pages.length ? '' : 'none';
+  $('capture-box').style.display = pages.length ? '' : 'none';
+  updateCaptureTarget();
 }
 
 function updateSummary() {
   const kept = pages.filter((p) => p.keep).length;
   $('summary').textContent = `${pages.length} page${pages.length === 1 ? '' : 's'} found`;
-  const seconds = videoSeconds ? `${videoSeconds.toFixed(1)}s of video` : 'the video';
+  const seconds = report && report.duration ? `${report.duration.toFixed(1)}s of video` : 'the video';
   $('summary2').textContent = `${kept} selected · ${seconds}`;
   $('download').disabled = kept === 0;
   $('download').textContent = kept === 0 ? 'Tick at least one page' : `Download the PDF (${kept} page${kept === 1 ? '' : 's'})`;
+  if (pages.length) {
+    $('bigger').setAttribute('aria-label',
+      `Show page ${Math.min(focused + 1, pages.length)} of ${pages.length} at full size`);
+  }
+  // The PDF box counts the same selection, so it is refreshed from the same place.
+  if ($('export-count').textContent !== '' || kept) renderExport();
 }
 
 function toggle(i) {
@@ -398,36 +703,442 @@ function toggle(i) {
 function renderReviewKeepStates() {
   [...$('pages').children].forEach((el, i) => {
     el.classList.toggle('off', !pages[i].keep);
-    el.querySelector('.tick').classList.toggle('on', pages[i].keep);
+    const tick = el.querySelector('.tick');
+    tick.classList.toggle('on', pages[i].keep);
+    tick.setAttribute('aria-pressed', pages[i].keep ? 'true' : 'false');
   });
 }
 
 $('all').onclick = () => { pages.forEach((p) => { p.keep = true; }); renderReviewKeepStates(); updateSummary(); };
 $('none').onclick = () => { pages.forEach((p) => { p.keep = false; }); renderReviewKeepStates(); updateSummary(); };
-$('startover').onclick = () => { pages = []; file = null; show('pick'); };
-$('lightbox').onclick = closePreview;
-document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closePreview(); });
+
+// ── the full-size view ─────────────────────────────────────────────────────
+// "Show the full picture" used to be dead markup: always display:none, with no
+// handler, and the lightbox showed the 300px thumbnail. It now opens the captured
+// page at its real size, follows a keyboard, and can be closed with Escape.
+function openFull(i) {
+  if (!pages[i]) return;
+  focused = i;
+  const page = pages[i];
+  const img = $('lightbox-img');
+  img.src = page.url;
+  img.alt = `Page ${i + 1} of ${pages.length}, captured at ${page.time.toFixed(1)}s`;
+  $('lb-count').textContent = `Page ${i + 1} of ${pages.length}`;
+  $('lb-prev').disabled = i === 0;
+  $('lb-next').disabled = i === pages.length - 1;
+  if (!$('lightbox').classList.contains('on')) returnFocusTo = document.activeElement;
+  $('lightbox').classList.add('on');
+  document.body.classList.add('lb-open');
+  $('lb-close').focus();
+  updateSummary();
+}
+
+function closeFull() {
+  if (!$('lightbox').classList.contains('on')) return;
+  $('lightbox').classList.remove('on');
+  document.body.classList.remove('lb-open');
+  $('lightbox-img').removeAttribute('src');
+  const back = returnFocusTo;
+  returnFocusTo = null;
+  if (back && typeof back.focus === 'function') back.focus();
+}
+
+function stepFull(delta) {
+  const next = focused + delta;
+  if (next >= 0 && next < pages.length) openFull(next);
+}
+
+$('bigger').onclick = () => openFull(focused);
+$('lb-close').onclick = closeFull;
+$('lb-prev').onclick = () => stepFull(-1);
+$('lb-next').onclick = () => stepFull(1);
+$('lightbox').onclick = (e) => { if (e.target === $('lightbox')) closeFull(); };
+document.addEventListener('keydown', (e) => {
+  if (!$('lightbox').classList.contains('on')) return;
+  if (e.key === 'Escape') { e.preventDefault(); closeFull(); }
+  if (e.key === 'ArrowLeft') { e.preventDefault(); stepFull(-1); }
+  if (e.key === 'ArrowRight') { e.preventDefault(); stepFull(1); }
+});
+
+// ── starting again ─────────────────────────────────────────────────────────
+function resetPages() {
+  pages.forEach((page) => { if (page.url) URL.revokeObjectURL(page.url); });
+  pages = [];
+  report = null;
+  focused = 0;
+}
+
+function startOver() {
+  closeFull();
+  resetPages();
+  file = null;
+  if (videoUrl) { URL.revokeObjectURL(videoUrl); videoUrl = null; }
+  video.removeAttribute('src');
+  try { video.load(); } catch (_) { /* not fatal */ }
+  // The important line: without clearing the input, picking the *same* file again
+  // fires no change event at all and the app looks broken. The browser keeps the
+  // input's value, so we have to drop it ourselves.
+  $('file').value = '';
+  $('pages').innerHTML = '';
+  $('summary').textContent = '';
+  $('summary2').textContent = '';
+  $('filename').textContent = '';
+  $('title').value = '';
+  $('fill').style.width = '0%';
+  $('stage').innerHTML = '';
+  $('stage2').textContent = '';
+  $('err').style.display = 'none';
+  $('save-note').style.display = 'none';
+  $('download').disabled = false;
+  $('download').textContent = 'Download the PDF';
+  $('bigger').style.display = 'none';
+  $('bigger').removeAttribute('aria-label');
+  noteTitle = '';
+  // The boxes below the gallery keep their own state: the chosen picture, the one-step
+  // undo, a previewed frame, and the frame-capture video's object URL. All of it is
+  // released here, or "Start over" would leave a pictureless PDF box behind.
+  chosen = 0;
+  swapBack = null;
+  pendingFrame = null;
+  if (captureUrl) { URL.revokeObjectURL(captureUrl); captureUrl = null; }
+  $('export-box').style.display = 'none';
+  $('capture-box').style.display = 'none';
+  $('export-list').innerHTML = '';
+  $('export-count').textContent = '';
+  $('export-note').textContent = '';
+  $('cap-stage').style.display = 'none';
+  $('cap-img').removeAttribute('src');
+  $('cap-meta').textContent = '';
+  $('cap-status').textContent = '';
+  $('cap-video').textContent = 'No video is open for frame capture yet.';
+  $('cap-time').value = '';
+  $('cap-undo').style.display = 'none';
+  $('cap-target').textContent = '';
+  $('cap-file').value = '';
+  $('link-out').style.display = 'none';
+  show('pick');
+  drop.focus();
+}
+$('startover').onclick = startOver;
 
 $('title').oninput = () => { noteTitle = $('title').value; updateFilename(); };
 function updateFilename() {
   $('filename').textContent = `will be saved as ${safeFilename(noteTitle)}`;
 }
 
-$('download').onclick = async () => {
-  const kept = pages.filter((p) => p.keep);
-  if (!kept.length) return;
-  const bytes = buildPdf(kept.map((p) => ({ jpeg: p.jpeg, width: p.width, height: p.height })), {
-    pageSize: 'a4', title: noteTitle,
+// ── the PDF box: order, remove, and the paper it is printed on ─────────────
+// This reads the same `pages` array the gallery shows - there is no second list to
+// fall out of step with, which is what makes "never silently omit a picture" true
+// by construction rather than by promise.
+function renderExport() {
+  const kept = pages.filter((page) => page.keep);
+  $('export-count').textContent = `${kept.length} of ${pages.length} picture`
+    + `${pages.length === 1 ? '' : 's'} selected — the PDF will have ${kept.length} page`
+    + `${kept.length === 1 ? '' : 's'}, in the order shown here.`;
+  $('export-count').setAttribute('data-kept', String(kept.length));
+
+  const list = $('export-list');
+  list.innerHTML = '';
+  pages.forEach((page, i) => {
+    const row = document.createElement('div');
+    row.className = 'exrow' + (page.keep ? '' : ' off') + (i === chosen ? ' chosen' : '');
+    row.dataset.index = String(i);
+    row.innerHTML = `
+      <span class="exnum">${i + 1}</span>
+      <img src="${page.url}" alt="Picture ${i + 1}" loading="lazy" decoding="async">
+      <span class="exmeta">${describeResolution(page.width, page.height)} · page ${i + 1}`
+      + `${page.keep ? '' : ' · not selected'}</span>
+      <span class="exbtns">
+        <button type="button" class="exm" data-act="up" aria-label="Move picture ${i + 1} earlier"
+          ${i === 0 ? 'disabled' : ''}>↑</button>
+        <button type="button" class="exm" data-act="down" aria-label="Move picture ${i + 1} later"
+          ${i === pages.length - 1 ? 'disabled' : ''}>↓</button>
+        <button type="button" class="exm" data-act="choose" aria-label="Choose picture ${i + 1} for replacing"
+          ${i === chosen ? 'disabled' : ''}>●</button>
+        <button type="button" class="exm" data-act="remove" aria-label="Remove picture ${i + 1}">✕</button>
+      </span>`;
+    list.appendChild(row);
   });
-  const blob = new Blob([bytes], { type: 'application/pdf' });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = safeFilename(noteTitle);
-  document.body.appendChild(link);
-  link.click();
-  link.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 30000);
+  const quality = pages[chosen] ? qualityNote(pages[chosen].width, pages[chosen].height) : null;
+  $('export-note').textContent = quality ? quality.text : '';
+  updateCaptureTarget();
+}
+
+$('export-list').onclick = (event) => {
+  const button = event.target.closest('.exm');
+  if (!button) return;
+  const index = Number(button.closest('.exrow').dataset.index);
+  const act = button.dataset.act;
+  if (act === 'choose') { chosen = index; renderExport(); }
+  if (act === 'up') movePicture(index, -1);
+  if (act === 'down') movePicture(index, 1);
+  if (act === 'remove') removePicture(index);
+};
+
+function movePicture(index, delta) {
+  const to = index + delta;
+  if (to < 0 || to >= pages.length) return;
+  [pages[index], pages[to]] = [pages[to], pages[index]];
+  chosen = to;
+  // Redraw the gallery too: its numbers *are* the PDF's page numbers, so leaving it
+  // stale would make the two disagree about which picture is page 2.
+  renderReview();
+}
+
+function removePicture(index) {
+  if (index < 0 || index >= pages.length) return;
+  const [gone] = pages.splice(index, 1);
+  if (gone && gone.url) URL.revokeObjectURL(gone.url);
+  if (swapBack && swapBack.index === index) swapBack = null;
+  chosen = Math.max(0, Math.min(index, pages.length - 1));
+  if (!pages.length) { startOver(); return; }
+  renderReview();
+  $('export-note').textContent = `Removed that picture — ${pages.length} left.`;
+}
+
+// ── capture a frame, or swap one picture for another ───────────────────────
+// The same <video> the job used, so "use the video already open" needs no second
+// copy of the file in memory.
+let captureUrl = null;
+
+function updateCaptureTarget() {
+  const target = pages[chosen];
+  $('cap-target').textContent = target
+    ? `The chosen picture is #${chosen + 1} (${describeResolution(target.width, target.height)}, `
+      + `captured at ${target.time.toFixed(1)}s). Replacement only ever touches this one.`
+    : 'Capture a frame first — there is no picture to replace yet.';
+}
+
+function setCaptureStatus(text) { $('cap-status').textContent = text || ''; }
+
+async function loadCaptureVideo(chosenFile) {
+  setCaptureStatus('Opening the video…');
+  $('cap-stage').style.display = 'none';
+  pendingFrame = null;
+  try {
+    if (!chosenFile) throw new Error('No file was chosen.');
+    if (captureUrl) { URL.revokeObjectURL(captureUrl); captureUrl = null; }
+    if (videoUrl) { URL.revokeObjectURL(videoUrl); videoUrl = null; }
+    captureUrl = URL.createObjectURL(chosenFile);
+    videoUrl = captureUrl;
+    video.src = captureUrl;
+    await new Promise((resolve, reject) => {
+      video.onloadedmetadata = resolve;
+      video.onerror = () => reject(new Error(`"${chosenFile.name}" could not be read as a video — `
+        + 'it may be damaged, or use a codec this browser does not have (an iPhone '
+        + 'recording in HEVC, for example).'));
+    });
+    if (!video.videoWidth) throw new Error('That file has no picture in it.');
+    if (!isFinite(video.duration) || video.duration <= 0) {
+      throw new Error('The length of that video could not be read, so a time cannot be checked against it.');
+    }
+    $('cap-video').textContent = `${chosenFile.name} — ${formatTimecode(video.duration)} long, `
+      + `${describeResolution(video.videoWidth, video.videoHeight)}. Type a time, preview it, then capture.`;
+    $('cap-time').value = $('cap-time').value || '0:00.000';
+    setCaptureStatus('Ready. Type a time and press "Preview this frame".');
+  } catch (error) {
+    $('cap-video').textContent = 'No video is open for frame capture yet.';
+    setCaptureStatus(error.message || 'That video could not be opened.');
+  }
+}
+
+$('cap-file').onchange = (event) => { if (event.target.files[0]) loadCaptureVideo(event.target.files[0]); };
+$('cap-use-loaded').onclick = () => {
+  if (video.src && video.videoWidth) {
+    $('cap-video').textContent = `${formatTimecode(video.duration)} long, `
+      + `${describeResolution(video.videoWidth, video.videoHeight)} — the video this job used.`;
+    setCaptureStatus('Ready. Type a time and press "Preview this frame".');
+    if (!$('cap-time').value) $('cap-time').value = '0:00.000';
+  } else {
+    setCaptureStatus('No video is loaded. Choose one, or run a video through the picker first.');
+  }
+};
+
+/** Seek to the typed time and show exactly what would be captured. */
+async function previewFrame() {
+  const check = checkTimecode($('cap-time').value, video.duration);
+  if (!check.ok) { setCaptureStatus(check.error); $('cap-stage').style.display = 'none'; pendingFrame = null; return false; }
+  if (!video.videoWidth) { setCaptureStatus('No video is open yet — choose one first.'); return false; }
+  setCaptureStatus(`Seeking to ${formatTimecode(check.seconds)}…`);
+  try {
+    await seekTo(video, check.seconds);
+    const width = video.videoWidth;
+    const height = video.videoHeight;
+    const canvas = document.createElement('canvas');
+    canvas.width = width; canvas.height = height;
+    grabFrame(video, canvas, video.currentTime);
+    const url = canvas.toDataURL('image/jpeg', 0.95);
+    pendingFrame = { canvas, width, height, seconds: check.seconds, url };
+    $('cap-img').src = url;
+    $('cap-img').alt = `The frame at ${formatTimecode(check.seconds)}`;
+    $('cap-stage').style.display = '';
+    $('cap-meta').textContent = `Frame at ${formatTimecode(check.seconds)} — `
+      + `${describeResolution(width, height)}, the video's own size (nothing is enlarged).`;
+    setCaptureStatus('Preview ready. Capture it to add it to the PDF, or replace the chosen picture with it.');
+    return true;
+  } catch (error) {
+    setCaptureStatus(`That frame could not be read: ${error.message}`);
+    return false;
+  }
+}
+$('cap-preview').onclick = () => previewFrame();
+
+$('cap-go').onclick = async () => {
+  const button = $('cap-go');
+  button.disabled = true;
+  try {
+    if (!(await previewFrame())) return;
+    const { canvas, width, height, seconds } = pendingFrame;
+    const quality = parseFloat($('quality').value);
+    const jpeg = await canvasToJpeg(canvas, quality);
+    const blob = new Blob([jpeg], { type: 'image/jpeg' });
+    pages.push({
+      time: seconds, reason: 'captured', width, height,
+      blob, url: URL.createObjectURL(blob), keep: true,
+    });
+    chosen = pages.length - 1;
+    swapBack = null;
+    renderReview();
+    setCaptureStatus(`Captured the frame at ${formatTimecode(seconds)} and added it as picture `
+      + `#${pages.length}. It is ticked, so it is in the PDF.`);
+  } catch (error) {
+    setCaptureStatus(`The frame could not be captured: ${error.message}`);
+  } finally {
+    button.disabled = false;
+  }
+};
+
+/** Swap one picture for the previewed frame, leaving every other one untouched. */
+$('cap-replace').onclick = async () => {
+  const target = pages[chosen];
+  if (!target) { setCaptureStatus('There is no picture to replace.'); return; }
+  if (!pendingFrame) { setCaptureStatus('Preview a frame first — that is what will take its place.'); return; }
+  const button = $('cap-replace');
+  button.disabled = true;
+  try {
+    const { canvas, width, height, seconds } = pendingFrame;
+    const quality = parseFloat($('quality').value);
+    const jpeg = await canvasToJpeg(canvas, quality);
+    const blob = new Blob([jpeg], { type: 'image/jpeg' });
+    // Keep the original until this point, then hand it to the undo slot rather than
+    // dropping it, so "Undo" is real and not a redraw of something already lost.
+    swapBack = { index: chosen, page: target };
+    pages[chosen] = {
+      time: seconds, reason: 'replaced', width, height,
+      blob, url: URL.createObjectURL(blob), keep: target.keep,
+    };
+    renderReview();
+    $('cap-undo').style.display = '';
+    setCaptureStatus(`Picture #${chosen + 1} is now the frame at ${formatTimecode(seconds)}. `
+      + `The other ${pages.length - 1} kept their places and their ticks.`);
+  } catch (error) {
+    setCaptureStatus(`The picture could not be replaced: ${error.message}`);
+  } finally {
+    button.disabled = false;
+  }
+};
+
+$('cap-undo').onclick = () => {
+  if (!swapBack) return;
+  const { index, page } = swapBack;
+  const current = pages[index];
+  if (current && current.url) URL.revokeObjectURL(current.url);
+  pages[index] = page;
+  swapBack = null;
+  chosen = Math.min(index, pages.length - 1);
+  renderReview();
+  $('cap-undo').style.display = 'none';
+  setCaptureStatus(`Undone — picture #${index + 1} is back to what it was.`);
+};
+
+/** Say what the lossless setting needs, before it is used and not after. */
+function describeEmbed() {
+  const lossless = $('embed').value === 'lossless';
+  const supported = typeof CompressionStream !== 'undefined';
+  $('embed-note').textContent = !lossless
+    ? 'JPEG: the picture is stored exactly as it was captured, which is what the video gave us.'
+    : supported
+      ? 'Lossless: the pixels go in untouched, so a transparent PNG stays transparent. Files are several times bigger.'
+      : 'Lossless is not available in this browser (no CompressionStream), so JPEG will be used.';
+  if (lossless && !supported) $('embed').value = 'jpeg';
+}
+$('embed').onchange = describeEmbed;
+describeEmbed();
+
+// ── the PDF ────────────────────────────────────────────────────────────────
+$('download').onclick = async () => {
+  const kept = pages.filter((page) => page.keep);
+  if (!kept.length) return;
+  const button = $('download');
+  const label = button.textContent;
+  button.disabled = true;
+  button.textContent = 'Writing the PDF…';
+  $('save-note').style.display = 'none';
+  const wantLossless = $('embed').value === 'lossless';
+  try {
+    if (wantLossless && typeof CompressionStream === 'undefined') {
+      throw new Error('This browser cannot compress images losslessly — choose the JPEG setting.');
+    }
+    const images = [];
+    for (let i = 0; i < kept.length; i++) {
+      const page = kept[i];
+      $('export-note').textContent = `Writing page ${i + 1} of ${kept.length}…`;
+      if (wantLossless) {
+        // Decode the stored picture back to pixels, so the deflated stream carries it
+        // exactly as it is - no quantisation, and transparency survives as a /SMask.
+        const bitmap = await createImageBitmap(page.blob);
+        const canvas = document.createElement('canvas');
+        canvas.width = page.width; canvas.height = page.height;
+        const context = canvas.getContext('2d');
+        context.drawImage(bitmap, 0, 0, page.width, page.height);
+        const rgba = context.getImageData(0, 0, page.width, page.height).data;
+        images.push(await encodeLossless(new Uint8Array(rgba), page.width, page.height));
+        if (bitmap.close) bitmap.close();
+      } else {
+        images.push({
+          jpeg: new Uint8Array(await page.blob.arrayBuffer()),
+          width: page.width, height: page.height,
+        });
+      }
+    }
+    // There is no second list of pictures anywhere, so this can only fail if the list
+    // changed underneath us - and a PDF quietly missing a page would be worse than a
+    // message saying so.
+    if (images.length !== kept.length) {
+      throw new Error(`Only ${images.length} of ${kept.length} pictures were prepared — nothing was downloaded.`);
+    }
+    const bytes = buildPdf(images, {
+      pageSize: $('pagesize').value,
+      orientation: $('orient').value,
+      fit: $('fitmode').value,
+      title: noteTitle,
+    });
+    const blob = new Blob([bytes], { type: 'application/pdf' });
+    const url = URL.createObjectURL(blob);
+    const name = safeFilename(noteTitle || 'pagesnap-export');
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = name;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    // Long enough that a phone has started fetching the file before the URL is dropped.
+    setTimeout(() => URL.revokeObjectURL(url), 60000);
+    $('save-note').textContent = `Asked the browser to save “${name}” — ${kept.length} page`
+      + `${kept.length === 1 ? '' : 's'}, ${humanBytes(bytes.length)}. On a phone, look in `
+      + 'Files → Downloads; if nothing appears, the PDF is open in a tab — use Share → '
+      + 'Save to Files.';
+    $('save-note').style.display = '';
+    $('export-note').textContent = `Wrote ${kept.length} page${kept.length === 1 ? '' : 's'} — `
+      + 'every selected picture is in the file.';
+  } catch (error) {
+    $('save-note').textContent = `The PDF could not be written: ${error.message}`;
+    $('save-note').style.display = '';
+    $('export-note').textContent = '';
+  } finally {
+    button.disabled = false;
+    button.textContent = label;
+  }
 };
 
 show('pick');

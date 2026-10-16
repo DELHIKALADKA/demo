@@ -14,8 +14,10 @@ prototype/static/*.local.*
 
 # Test tooling and logs
 node_modules/
+# Generated test videos: rebuild with `python3 docs/test/make_media.py`
+docs/test/media/
 prototype/tests/.server.log
 prototype/tests/.ui-server.log
 
-# docs/build_site.py output, for static hosts other than GitHub Pages (not committed)
+# GitHub Pages build output (assembled in CI, uploaded as an artifact)
 _site/
