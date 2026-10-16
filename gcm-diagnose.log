@@ -1,0 +1,192 @@
+﻿Diagnose log at 2026-10-16T16:44:30Z
+
+AppPath: C:\Program Files\Git\mingw64\bin\git-credential-manager.exe
+InstallDir: C:\Program Files\Git\mingw64\bin\
+Version: 2.9.1+6760f0ef069c994aa2bb1d703fb374986ee82a3e
+
+------------
+Diagnostic: Environment
+Skipped: False
+Success: True
+Exception: None
+Log:
+OSType: Windows
+OSVersion: 10.0 (build 22631)
+Reading environment variables... OK
+ Variables:
+SESSIONNAME=Console
+ProgramFiles(x86)=C:\Program Files (x86)
+MSYSTEM=MINGW64
+ProgramW6432=C:\Program Files
+PROCESSOR_IDENTIFIER=Intel64 Family 6 Model 122 Stepping 8, GenuineIntel
+TMP=C:\Users\GENIUS~1\AppData\Local\Temp
+PROCESSOR_ARCHITECTURE=AMD64
+DriverData=C:\Windows\System32\Drivers\DriverData
+EFC_9572=1
+USERPROFILE=C:\Users\GENIUS ELECTRONICS
+PROCESSOR_REVISION=7a08
+TEMP=C:\Users\GENIUS~1\AppData\Local\Temp
+FPS_BROWSER_APP_PROFILE_STRING=Internet Explorer
+FPS_BROWSER_USER_PROFILE_STRING=Default
+LOGONSERVER=\\PLAYSTATION
+TERM=xterm-256color
+USERNAME=GENIUS ELECTRONICS
+SystemRoot=C:\WINDOWS
+GIT_EXEC_PATH=C:/Program Files/Git/mingw64/libexec/git-core
+PLINK_PROTOCOL=ssh
+OneDrive=C:\Users\GENIUS ELECTRONICS\OneDrive
+USERDOMAIN_ROAMINGPROFILE=PLAYSTATION
+CommonProgramFiles=C:\Program Files\Common Files
+ZES_ENABLE_SYSMAN=1
+ProgramData=C:\ProgramData
+LC_CTYPE=C.UTF-8
+HOMEPATH=\Users\GENIUS ELECTRONICS
+OneDriveConsumer=C:\Users\GENIUS ELECTRONICS\OneDrive
+COMPUTERNAME=PLAYSTATION
+ALLUSERSPROFILE=C:\ProgramData
+CommonProgramW6432=C:\Program Files\Common Files
+MOZ_PLUGIN_PATH=C:\Program Files (x86)\Foxit Software\Foxit Reader\plugins\
+CommonProgramFiles(x86)=C:\Program Files (x86)\Common Files
+HOMEDRIVE=C:
+WPSCLI_HOME=C:\Users\GENIUS ELECTRONICS\AppData\Local\Kingsoft\WPS Office\12.1.0.27458\clitool
+windir=C:\WINDOWS
+GIT_TRACE2_PARENT_SID=5ff78373-31aa-4645-9dba-cb108f3e0c65
+SystemDrive=C:
+NUMBER_OF_PROCESSORS=4
+OS=Windows_NT
+ProgramFiles=C:\Program Files
+ComSpec=C:\Windows\System32\cmd.exe
+PATHEXT=.COM;.EXE;.BAT;.CMD;.VBS;.VBE;.JS;.JSE;.WSF;.WSH;.MSC
+HOME=C:\Users\GENIUS ELECTRONICS
+PSModulePath=C:\WINDOWS\system32\WindowsPowerShell\v1.0\Modules\
+PROMPT=$P$G
+TMPDIR=C:\Users\GENIUS~1\AppData\Local\Temp
+APPDATA=C:\Users\GENIUS ELECTRONICS\AppData\Roaming
+USERDOMAIN=PLAYSTATION
+PROCESSOR_LEVEL=6
+LOCAL_GIT_DIRECTORY=C:\Users\GENIUS ELECTRONICS\AppData\Local\GitHubDesktop\app-3.6.7\resources\app\git
+LOCALAPPDATA=C:\Users\GENIUS ELECTRONICS\AppData\Local
+Path=C:/Program Files/Git/mingw64/libexec/git-core;C:\Program Files\Git\mingw64\bin;C:\Program Files\Git\usr\bin;C:\Users\GENIUS ELECTRONICS\bin;C:\Program Files\Common Files\Oracle\Java\javapath;C:\Program Files (x86)\Common Files\Oracle\Java\java8path;C:\Program Files (x86)\Common Files\Oracle\Java\javapath;C:\WINDOWS\system32;C:\WINDOWS;C:\WINDOWS\System32\Wbem;C:\WINDOWS\System32\WindowsPowerShell\v1.0\;C:\WINDOWS\System32\OpenSSH\;C:\Program Files\Microsoft SQL Server\150\Tools\Binn\;C:\Program Files\Microsoft SQL Server\Client SDK\ODBC\170\Tools\Binn\;C:\Program Files\Intel\WiFi\bin\;C:\Program Files\Common Files\Intel\WirelessCommon\;C:\Program Files\nodejs\;C:\Program Files (x86)\cloudflared\;C:\Program Files\Git\cmd;C:\Program Files\WSL\;C:\Users\GENIUS ELECTRONICS\.local\bin;C:\Users\GENIUS ELECTRONICS\AppData\Local\Programs\Python\Launcher\;C:\Users\GENIUS ELECTRONICS\AppData\Local\Programs\Microsoft VS Code\bin;C:\Users\GENIUS ELECTRONICS\AppData\Local\Microsoft\WindowsApps;C:\MinGW\bin;C:\MinGW\;C:\Users\GENIUS ELECTRONICS\Downloads\flutter;C:\Users\GENIUS ELECTRONICS\Downloads\flutter\flutter;C:\Users\GENIUS ELECTRONICS\AppData\Roaming\npm;C:\Users\GENIUS ELECTRONICS\AppData\Local\Programs\Ollama;C:\Users\GENIUS ELECTRONICS\AppData\Local\Kingsoft\WPS Office\12.1.0.27458\clitool
+COLORTERM=truecolor
+PUBLIC=C:\Users\Public
+
+
+------------
+Diagnostic: File system
+Skipped: False
+Success: True
+Exception: None
+Log:
+Temporary directory is 'C:\Users\GENIUS ELECTRONICS\AppData\Local\Temp\'...
+Checking basic file I/O...
+Writing to temporary file 'C:\Users\GENIUS ELECTRONICS\AppData\Local\Temp\7f5345788ab49a318f3dafcb'... OK
+Reading from temporary file 'C:\Users\GENIUS ELECTRONICS\AppData\Local\Temp\7f5345788ab49a318f3dafcb'... OK
+Deleting temporary file 'C:\Users\GENIUS ELECTRONICS\AppData\Local\Temp\7f5345788ab49a318f3dafcb'... OK
+Testing IFileSystem instance...
+UserHomePath: C:\Users\GENIUS ELECTRONICS
+UserDataDirectoryPath: C:\Users\GENIUS ELECTRONICS\.gcm
+GetCurrentDirectory(): C:\Users\GENIUS ELECTRONICS\OneDrive\ドキュメント\GitHub\demo
+
+------------
+Diagnostic: Networking
+Skipped: False
+Success: True
+Exception: None
+Log:
+Checking networking and HTTP stack...
+Creating HTTP client... OK
+IsNetworkAvailable: True
+Sending HEAD request to http://example.com... OK
+Sending HEAD request to https://example.com... OK
+Acquiring free TCP port... OK
+Testing local HTTP loopback connections...
+Creating new HTTP listener for http://localhost:54351/... OK
+Waiting for loopback connection... OK
+Writing response... OK
+Waiting for response data... OK
+Loopback connection data OK
+
+------------
+Diagnostic: Git
+Skipped: False
+Success: True
+Exception: None
+Log:
+Getting Git version... OK
+Git version is '2.55.0.windows.5'
+Locating current repository...Git repository at 'C:/Users/GENIUS ELECTRONICS/OneDrive/ドキュメント/GitHub/demo/.git'
+ OK
+Listing all Git configuration... OK
+Git configuration:
+file:C:/Program Files/Git/etc/gitconfig	diff.astextplain.textconv=astextplain
+file:C:/Program Files/Git/etc/gitconfig	filter.lfs.clean=git-lfs clean -- %f
+file:C:/Program Files/Git/etc/gitconfig	filter.lfs.smudge=git-lfs smudge -- %f
+file:C:/Program Files/Git/etc/gitconfig	filter.lfs.process=git-lfs filter-process
+file:C:/Program Files/Git/etc/gitconfig	filter.lfs.required=true
+file:C:/Program Files/Git/etc/gitconfig	http.sslbackend=openssl
+file:C:/Program Files/Git/etc/gitconfig	http.sslcainfo=C:/Program Files/Git/mingw64/etc/ssl/certs/ca-bundle.crt
+file:C:/Program Files/Git/etc/gitconfig	core.autocrlf=true
+file:C:/Program Files/Git/etc/gitconfig	core.fscache=true
+file:C:/Program Files/Git/etc/gitconfig	core.symlinks=false
+file:C:/Program Files/Git/etc/gitconfig	pull.rebase=false
+file:C:/Program Files/Git/etc/gitconfig	init.defaultbranch=master
+file:C:/Users/GENIUS ELECTRONICS/.gitconfig	filter.lfs.clean=git-lfs clean -- %f
+file:C:/Users/GENIUS ELECTRONICS/.gitconfig	filter.lfs.smudge=git-lfs smudge -- %f
+file:C:/Users/GENIUS ELECTRONICS/.gitconfig	filter.lfs.process=git-lfs filter-process
+file:C:/Users/GENIUS ELECTRONICS/.gitconfig	filter.lfs.required=true
+file:C:/Users/GENIUS ELECTRONICS/.gitconfig	user.name=DELHIKALADKA
+file:C:/Users/GENIUS ELECTRONICS/.gitconfig	user.email=thegenzmerch@gmail.com
+file:C:/Users/GENIUS ELECTRONICS/.gitconfig	credential.helper=manager
+file:C:/Users/GENIUS ELECTRONICS/.gitconfig	credential.https://github.com.username=delhikaladka
+file:.git/config	core.repositoryformatversion=0
+file:.git/config	core.filemode=false
+file:.git/config	core.bare=false
+file:.git/config	core.logallrefupdates=true
+file:.git/config	core.symlinks=false
+file:.git/config	core.ignorecase=true
+file:.git/config	submodule.active=.
+file:.git/config	remote.origin.url=https://github.com/DELHIKALADKA/demo.git
+file:.git/config	remote.origin.fetch=+refs/heads/*:refs/remotes/origin/*
+file:.git/config	branch.main.remote=origin
+file:.git/config	branch.main.merge=refs/heads/main
+file:.git/config	lfs.repositoryformatversion=0
+file:.git/config	branch.pagesnap-upgrade.remote=origin
+file:.git/config	branch.pagesnap-upgrade.merge=refs/heads/pagesnap-upgrade
+file:.git/config	branch.fix-mobile-touch-targets.remote=origin
+file:.git/config	branch.fix-mobile-touch-targets.merge=refs/heads/fix-mobile-touch-targets
+
+
+------------
+Diagnostic: Credential storage
+Skipped: False
+Success: True
+Exception: None
+Log:
+ICredentialStore instance is of type: CredentialStore
+Writing test credential... OK
+Reading test credential... OK
+Deleting test credential... OK
+
+------------
+Diagnostic: Microsoft authentication (AAD/MSA)
+Skipped: False
+Success: True
+Exception: None
+Log:
+Broker is not enabled.
+Gathering MSAL token cache data... OK
+CacheDirectory: C:\Users\GENIUS ELECTRONICS\AppData\Local\.IdentityService
+CacheFileName: msal.cache
+CacheFilePath: C:\Users\GENIUS ELECTRONICS\AppData\Local\.IdentityService\msal.cache
+Creating cache helper... OK
+Verifying MSAL token cache persistence... OK
+
+------------
+Diagnostic: GitHub API
+Skipped: False
+Success: True
+Exception: None
+Log:
+Using 'https://github.com/' as API target.
+Querying '/meta' endpoint... OK
+
