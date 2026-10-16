@@ -12,10 +12,12 @@ Three ways to share it, fastest first.
 ## 1. Send the single file (works with no internet afterwards)
 
 ```bash
-python3 docs/build_single.py       # -> docs/pagesnap-offline.html  (40 KB)
+python3 docs/build_single.py       # -> docs/pagesnap-offline.html  (105 KB)
 ```
 
-`pagesnap-offline.html` is the entire app in one file. AirDrop it, email it, put
+`pagesnap-offline.html` is the entire app in one file — it is served at
+<https://delhikaladka.github.io/demo/pagesnap-offline.html> too, and the app's footer
+links to it. AirDrop it, email it, put
 it in a class WhatsApp group, or hand it over on a pen drive. A student saves it,
 opens it, picks a video, and gets their PDF — **no internet needed after the file
 arrives** (and no reason to trust a website with their videos, since it never
@@ -31,10 +33,13 @@ One-time setup, then the link never changes:
    repo needs a paid plan.) Settings → General → bottom → Change visibility.
    The source code being visible is normal for a student project, and it is how
    people can check that the app really does not upload anything.
-2. **Settings → Pages → Source: Deploy from a branch**
-   → Branch: `main`, folder: `/docs` → **Save**.
+2. **Settings → Pages → Build and deployment → Source: GitHub Actions**.
+   Not "Deploy from a branch": this app is tested and assembled by the workflow in
+   `.github/workflows/pages.yml` before it is published, and branch-deploy would serve
+   the repository root instead (which has no app in it).
 3. A minute later the link is live:
    `https://<your-username>.github.io/<repo-name>/`
+   (for this repository: <https://delhikaladka.github.io/demo/> — see `DEPLOYMENT.md`)
 
 Best for: a link you can paste in a group and forget about.
 
@@ -71,7 +76,6 @@ Two honest limits, so nobody is disappointed:
 ```bash
 python3 docs/serve.py --port 5173     # then open http://localhost:5173
 node docs/test/run.mjs                # the page-finding engine vs ground truth: 15/15
-node docs/test/browser.mjs            # the real page, end to end, in headless Chrome
 ```
 
 The page has a **"Try it with a sample lecture video"** button, so the first thing

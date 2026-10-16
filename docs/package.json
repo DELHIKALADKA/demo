@@ -5,10 +5,16 @@
   "type": "module",
   "description": "The browser build of PageSnap: find the pages in a video and write a PDF, all on the visitor's own device.",
   "scripts": {
-    "test": "node test/run.mjs",
+    "test": "node test/run.mjs && node test/browser.mjs",
+    "test:engine": "node test/run.mjs",
     "test:browser": "node test/browser.mjs",
+    "test:site": "node test/site.mjs",
+    "test:guards": "python3 test/test_build_guards.py",
+    "media": "python3 test/make_media.py",
     "build": "python3 build_site.py",
-    "check": "python3 build_site.py --check",
     "serve": "python3 serve.py"
+  },
+  "devDependencies": {
+    "puppeteer-core": "^25.0.0"
   }
 }
