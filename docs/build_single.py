@@ -50,7 +50,8 @@ def build(directory: str) -> str:
     )
 
     out = html.replace(script.group(0), f"<script>\n{bundled}</script>")
-
+    # The standalone offline file must not request a separate web manifest.
+    out = re.sub(r'\s*<link\s+rel=["\']manifest["\'][^>]*>', '', out, flags=re.I)
     # The offline file travels alone, so the sample video is not beside it.
     #
     # This pattern has to stop at the end of the sample *row*. The earlier one ended at
